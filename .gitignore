@@ -1,0 +1,5 @@
+*~
+*.agdai
+*.hi
+*.o
+src/MAlonzo/*
