@@ -3,6 +3,9 @@ Bindings to Haskell's IO monad which respect Agda's semantics.
 Overview
 ========
 
+Minimal I/O binding
+-------------------
+
 This library is intended to provide a minimal binding to Haskell IO,
 which respects Agda's semantics while still providing the performance
 benefits of lazy IO.
@@ -60,6 +63,19 @@ runs in constant space, for example when fed a 500M file:
                2 MB total memory in use (0 MB lost due to fragmentation)
 
 Its strict equivalent reads the whole file into memory.
+
+Transducers
+-----------
+
+There is also a more experimental library which is intended to provide
+the benefit of iteratees to Agda IO.  It is based on transducers
+(that is automata that can read input and produce output), and is
+typed using a variant on session types.  Since automata are explicit
+about when they perform input, they are not subject to eta-equivalence,
+so can be used without worrying about breaking Agda's semantics.
+
+Currently the transducer library is provided without any bindings
+to the I/O library -- this will be fixed soon.
 
 Requirements
 ============
