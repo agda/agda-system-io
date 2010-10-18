@@ -1,8 +1,9 @@
 open import Coinduction using ( ∞ ; ♭ ; ♯_ )
 open import Data.Maybe using ( Maybe ; just ; nothing )
 open import Data.Nat using ( ℕ ; suc )
-open import System.IO.Transducers using ( _⇒_ ; inp ; out ; done ; _[&]_ ; _⟫_ ; ¿S⊆¡S )
-open import System.IO.Transducers.Session using ( [] ; _∷_ ; _&_ ; ¿ ; ¡ ; _&¡_ ; _/'_ )
+open import System.IO.Transducers using ( _⇒_ ; inp ; out ; done ; out*' ; _[&]_ ; _⟫_ ; ¿S⊆¡S )
+open import System.IO.Transducers.Session using ( [] ; _∷_ ; ⟨_⟩ ; _&_ ; ¿ ; ¡ ; _&¡_ ; _/'_ )
+open import System.IO.Transducers.Trace using ( [] ; _∷_ ; _≤_ )
 open import Relation.Binary.PropositionalEquality using ( _≡_ ; refl )
 
 module System.IO.Transducers.Stateful where
@@ -19,6 +20,31 @@ module System.IO.Transducers.Stateful where
 -- The type Bytes ⇒ U & Bytes (or more generally ¡ ⟨ B ⟩ ⇒ U & ¡ ⟨ B ⟩)
 -- is the type of an iteratee returning U.
 
+-- Lookahead.
+
+-- Lookahead buffers up all input until some output is produced.
+-- If the output is (just x), then we discard the buffer, and
+-- continue with the process.  If the output is nothing, then we
+-- return the buffer to the output stream and discard the process.
+
+lookahead¿' : ∀ {T S S'} → (S' ≤ S) → (S' ⇒ ¿ T & S) → (S' ⇒ ¿ T & S)
+lookahead¿' {T} as (inp F) = inp (♯ λ a → lookahead¿' {T} (a ∷ as) (♭ F a))
+lookahead¿' {T} as (out nothing P) = out nothing (out*' as done) -- (out*' as done)
+lookahead¿' {T} as (out (just x) P) = out (just x) P
+lookahead¿' {T} as (done) = inp (♯ λ a → lookahead¿' {T} (a ∷ as) (out a done))
+
+lookahead¿ : ∀ {T S} → (S ⇒ ¿ T & S) → (S ⇒ ¿ T & S)
+lookahead¿ {T} = lookahead¿' {T} []
+
+lookahead¡' : ∀ {T S S'} → (S' ≤ S) → (S' ⇒ ¡ T & S) → (S' ⇒ ¡ T & S)
+lookahead¡' {T} as (inp F) = inp (♯ λ a → lookahead¡' {T} (a ∷ as) (♭ F a))
+lookahead¡' {T} as (out nothing P) = out nothing (out*' as done) -- (out*' as done)
+lookahead¡' {T} as (out (just x) P) = out (just x) P
+lookahead¡' {T} as (done) = inp (♯ λ a → lookahead¡' {T} (a ∷ as) (out a done))
+
+lookahead¡ : ∀ {T S} → (S ⇒ ¡ T & S) → (S ⇒ ¡ T & S)
+lookahead¡ {T} = lookahead¡' {T} []
+
 -- Iteration structure.
 
 -- Deep breath.
@@ -34,7 +60,8 @@ module System.IO.Transducers.Stateful where
 -- such that nat? n = nothing if n < 0 and just n otherwise,
 -- we can define:
 
---  loop (inp (♯ λ n → out (nat? n) done)) : ¡ ⟨ ℤ ⟩ ⇒ ¡ ⟨ ℕ ⟩ & ¡ ⟨ ℤ ⟩
+--  loop (lookahead (inp (♯ λ n → out (nat? n) done))) : 
+--    ¡ ⟨ ℤ ⟩ ⇒ ¡ ⟨ ℕ ⟩ & ¡ ⟨ ℤ ⟩
 
 -- This transducer will return the longest non-negative prefix
 -- of its input, for example on input just 2 ∷ just 5 ∷ just -3 ∷ ...

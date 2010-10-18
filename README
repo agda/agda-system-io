@@ -1,5 +1,3 @@
-Bindings to Haskell's IO monad which respect Agda's semantics.
-
 Overview
 ========
 
@@ -76,6 +74,8 @@ so can be used without worrying about breaking Agda's semantics.
 
 Currently the transducer library is provided without any bindings
 to the I/O library -- this will be fixed soon.
+
+Some simple examples are in System.IO.Examples.Transducers.
 
 Requirements
 ============

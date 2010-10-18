@@ -20,13 +20,21 @@ module System.IO.Transducers where
 -- are essentially I/O automata, or strategies in a two-player 
 -- game without the move alternation restriction.
 
-infixr 4 _⇒_
+infixr 4 _⇒_ Inp_⇒_
 infixr 6 _⟫_
 
 data _⇒_ : Session → Session → Set₁ where
   inp : ∀ {A Ss T} → ∞ (∀ a → (♭ Ss a ⇒ T)) → (A ∷ Ss ⇒ T)
   out : ∀ {B S Ts} → ∀ b → (S ⇒ ♭ Ts b) → (S ⇒ B ∷ Ts)
   done : ∀ {S} → (S ⇒ S)
+
+-- Input transducer function type
+
+data ⊥₁ : Set₁ where
+
+Inp_⇒_ : Session → Session → Set₁
+Inp []       ⇒ T = ⊥₁
+Inp (A ∷ Ss) ⇒ T = (a : A) → (♭ Ss a ⇒ T)
 
 -- Helper functions to output a whole trace.
 
