@@ -1,5 +1,6 @@
 open import Coinduction using ( ∞ ; ♭ ; ♯_ )
-open import System.IO.Transducers.Session using ( Session ; [] ; _∷_ ; Σ ; _/_ )
+open import Data.Nat using ( ℕ )
+open import System.IO.Transducers.Session using ( Session ; [] ; _∷_ ; dom ; Σ ; _/_ )
 
 module System.IO.Transducers.Trace where
 
@@ -15,13 +16,13 @@ infixr 5 _∷_ _++_ _++'_
 
 data _≥_ : Session → Session → Set₁ where
   [] : ∀ {S} → (S ≥ S)
-  _∷_ : ∀ {A Ss T} → (a : A) → (as : (♭ Ss a) ≥ T) → ((A ∷ Ss) ≥ T)
+  _∷_ : ∀ {A Ss T} → {V : A → ℕ} → (a : A) → (as : (♭ Ss a) ≥ T) → ((V ∷ Ss) ≥ T)
 
 -- Or they can be built bottom-up, as paths from a subtree back to the root:
 
 data _≤_ : Session → Session → Set₁ where
   [] : ∀ {S} → (S ≤ S)
-  _∷_ : ∀ {A Ss T} → (a : A) → (as : (A ∷ Ss) ≤ T) → (♭ Ss a ≤ T)
+  _∷_ : ∀ {A Ss T} → {V : A → ℕ} → (a : A) → (as : (V ∷ Ss) ≤ T) → (♭ Ss a ≤ T)
 
 -- Traces form categories, where composition is concatenation.
 
@@ -37,11 +38,11 @@ _++'_ : ∀ {S T U} → (S ≤ T) → (T ≤ U) → (S ≤ U)
 
 _◁_ : ∀ {S T} → (a : Σ S) → (S ≤ T) → (S / a ≤ T)
 _◁_ {[]}    () as
-_◁_ {A ∷ Ss} a as = a ∷ as
+_◁_ {V ∷ Ss} a as = a ∷ as
 
 _▷_ : ∀ {S T} → (a : Σ S) → (S / a ≥ T) → (S ≥ T)
 _▷_ {[]}    () as
-_▷_ {A ∷ Ss} a as = a ∷ as
+_▷_ {V ∷ Ss} a as = a ∷ as
 
 -- Trace reversal gives a natural isomorphism between the categories.
 

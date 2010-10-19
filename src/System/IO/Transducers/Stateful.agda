@@ -1,8 +1,8 @@
 open import Coinduction using ( ∞ ; ♭ ; ♯_ )
 open import Data.Maybe using ( Maybe ; just ; nothing )
-open import Data.Nat using ( ℕ ; suc )
+open import Data.Nat using ( ℕ ; suc ; _+_ )
 open import System.IO.Transducers using ( _⇒_ ; inp ; out ; done ; out*' ; _[&]_ ; _⟫_ ; ¿S⊆¡S )
-open import System.IO.Transducers.Session using ( [] ; _∷_ ; ⟨_⟩ ; _&_ ; lift ; ¿ ; ¡ ; _&¡_ ; Σ ; _/_ ; opt ; many )
+open import System.IO.Transducers.Session using ( [] ; _∷_ ; ⟨_⟩ ; _&_ ; lift ; ¿ ; ¡ ; _&¡_ ; Σ ; Δ ; _/_ ; ⟨Maybe⟩ )
 open import System.IO.Transducers.Trace using ( [] ; _∷_ ; _≤_ )
 open import Relation.Binary.PropositionalEquality using ( _≡_ ; refl )
 
@@ -109,27 +109,27 @@ mutual
   -- loop'' 0 P Q R is equivant to P ⟫ Q ⟫ (done ⟨&⟩ loop R)
 
   loop'' : ∀ {T T' R S S'} → ℕ → (R ⇒ S) → (S ⇒ T' & S') → (S' ⇒ ¿ T & S') → (R ⇒ (T' &¡ T) & S')
-  loop'' {T} {[]}     n P           Q         R = loop' {T} n (P ⟫ Q) R R
-  loop'' {T} {B ∷ Ts} n (inp F)     (inp G)   R = inp (♯ λ a → loop'' {T} {B ∷ Ts} (suc n) (♭ F a) (inp G) R)
-  loop'' {T} {B ∷ Ts} n (out a P)   (inp G)   R = loop'' {T} {B ∷ Ts} n P (♭ G a) R
-  loop'' {T} {B ∷ Ts} n done        (inp F)   R = inp (♯ λ a → loop'' {T} {B ∷ Ts} (suc n) done (♭ F a) R)
-  loop'' {T} {B ∷ Ts} n P           (out b Q) R = out b (loop'' {T} {♭ Ts b} n P Q R)
-  loop'' {T} {B ∷ Ts} n (inp F)     done      R = inp (♯ λ a → loop'' {T} {B ∷ Ts} (suc n) (♭ F a) done R)
-  loop'' {T} {B ∷ Ts} n (out a P)   done      R = out a (loop'' {T} {♭ Ts a} n P done R)
-  loop'' {T} {B ∷ Ts} n done        done      R = inp (♯ λ a → out a (loop'' {T} {♭ Ts a} n done done R))
+  loop'' {T} {[]}              n P           Q         R = loop' {T} n (P ⟫ Q) R R
+  loop'' {T} {V ∷ Ts} {W ∷ Rs} n (inp F)     (inp G)   R = inp (♯ λ a → loop'' {T} {V ∷ Ts} (W a + n) (♭ F a) (inp G) R)
+  loop'' {T} {V ∷ Ts}          n (out a P)   (inp G)   R = loop'' {T} {V ∷ Ts} n P (♭ G a) R
+  loop'' {T} {V ∷ Ts} {W ∷ Rs} n done        (inp F)   R = inp (♯ λ a → loop'' {T} {V ∷ Ts} (W a + n) done (♭ F a) R)
+  loop'' {T} {V ∷ Ts}          n P           (out b Q) R = out b (loop'' {T} {♭ Ts b} n P Q R)
+  loop'' {T} {V ∷ Ts} {W ∷ Rs} n (inp F)     done      R = inp (♯ λ a → loop'' {T} {V ∷ Ts} (W a + n) (♭ F a) done R)
+  loop'' {T} {V ∷ Ts}          n (out a P)   done      R = out a (loop'' {T} {♭ Ts a} n P done R)
+  loop'' {T} {V ∷ Ts}          n done        done      R = inp (♯ λ a → out a (loop'' {T} {♭ Ts a} (V a + n) done done R))
 
   -- loop' 0 P Q R is equivalent to P ⟫ Q ⟫ loop R [¿] done
 
   loop' : ∀ {T R S S'} → ℕ → (R ⇒ S) → (S ⇒ ¿ T & S') → (S' ⇒ ¿ T & S') → (R ⇒ ¡ T & S')
-  loop' {T} n       (inp F)   (inp G)          R = inp (♯ λ a → loop' {T} (suc n) (♭ F a) (inp G) R)
-  loop' {T} n       (out a P) (inp G)          R = loop' {T} n P (♭ G a) R
-  loop' {T} n       done      (inp F)          R = inp (♯ λ a → loop' {T} (suc n) done (♭ F a) R)
-  loop' {T} 0       P         (out b Q)        R = P ⟫ out b Q ⟫ (¿S⊆¡S {T} [&] done)
-  loop' {T} (suc n) P         (out (just b) Q) R = out (just b) (loop'' {T} {lift T / b} n P Q R)
-  loop' {T} (suc n) P         (out nothing Q)  R  = P ⟫ out nothing Q
-  loop' {T} n       (inp F)   done             R = inp (♯ λ a → loop' {T} (suc n) (♭ F a) done R)
-  loop' {T} n       (out a P) done             R = loop' {T} n P (out a done) R
-  loop' {T} n       done      done             R = inp (♯ λ a → loop' {T} (suc n) done (out a done) R)
+  loop' {T} {W ∷ Rs} n       (inp F)   (inp G)          R = inp (♯ λ a → loop' {T} (W a + n) (♭ F a) (inp G) R)
+  loop' {T}          n       (out a P) (inp G)          R = loop' {T} n P (♭ G a) R
+  loop' {T} {W ∷ Rs} n       done      (inp F)          R = inp (♯ λ a → loop' {T} (W a + n) done (♭ F a) R)
+  loop' {T}          0       P         (out b Q)        R = P ⟫ out b Q ⟫ (¿S⊆¡S {T} [&] done)
+  loop' {T}          (suc n) P         (out (just b) Q) R = out (just b) (loop'' {T} {lift T / b} n P Q R)
+  loop' {T}          (suc n) P         (out nothing Q)  R  = P ⟫ out nothing Q
+  loop' {T} {W ∷ Rs} n       (inp F)   done             R = inp (♯ λ a → loop' {T} (W a + n) (♭ F a) done R)
+  loop' {T}          n       (out a P) done             R = loop' {T} n P (out a done) R
+  loop' {T}          n       done      done             R = inp (♯ λ a → loop' {T} (⟨Maybe⟩ (Δ (lift T)) a + n) done (out a done) R)
 
 loop : ∀ {T S} → (S ⇒ ¿ T & S) → (S ⇒ ¡ T & S)
 loop {T} P = loop' {T} 0 done P P

@@ -3,6 +3,7 @@ open import Data.Empty using ( ⊥ )
 open import Data.Maybe using ( Maybe ; just ; nothing )
 open import Data.Sum using ( _⊎_ ; inj₁ ; inj₂ )
 open import Data.Unit using ( ⊤ )
+open import Data.Nat using ( ℕ )
 open import Level using ( Level )
 
 module System.IO.Transducers.Session where
@@ -18,6 +19,9 @@ module System.IO.Transducers.Session where
 -- They are also a lot like arenas in game semantics, but again
 -- are unidirectional.
 
+-- They're a lot like the container types from Ghani, Hancock
+-- and Pattison's "Continuous functions on final coalgebras".
+
 -- Finally, they are a lot like automata: states are sessions,
 -- acceptors are leaves, transitions correspond to children.
 
@@ -25,36 +29,67 @@ infixl 5 _/_
 infixr 6 _⊕_
 infixr 7 _&_ _&¡_
 
+-- Sessions are trees of weighted sets
+
 data Session : Set₁ where
   [] : Session
-  _∷_ : (A : Set) → (Ss : ∞ (A → Session)) → Session
+  _∷_ : {A : Set} → (W : A → ℕ) → (Ss : ∞ (A → Session)) → Session
+
+-- Domain of a weighting function
+
+dom : ∀ {A} → (A → ℕ) → Set
+dom {A} W = A
+
+-- Discrete weighting function
+
+discrete : ∀ {A} → (A → ℕ)
+discrete a = 1
+
+-- Optional weighting function
+
+⟨Maybe⟩ : ∀ {A} → (A → ℕ) → (Maybe A → ℕ)
+⟨Maybe⟩ W (just a) = W a
+⟨Maybe⟩ W nothing  = 1
+
+-- Choice weighting function
+
+_⟨⊎⟩_ : ∀ {A B} → (A → ℕ) → (B → ℕ) → ((A ⊎ B) → ℕ)
+(V ⟨⊎⟩ W) (inj₁ a) = V a
+(V ⟨⊎⟩ W) (inj₂ b) = W b
 
 -- Inital alphabet
 
 Σ : Session → Set
 Σ []       = ⊥
-Σ (A ∷ Ss) = A
+Σ (A ∷ Ss) = dom A
+
+Δ : ∀ S → (Σ S → ℕ)
+Δ []       ()
+Δ (W ∷ Ss) a = W a
 
 _/_ : ∀ S → (Σ S) → Session
 [] / ()
-(A ∷ Ss) / a = ♭ Ss a
+(W ∷ Ss) / a = ♭ Ss a
 
 -- Singletons
 
+⟨_w/_⟩ : (A : Set) → (A → ℕ) → Session
+⟨ A w/ W ⟩ = W ∷ (♯ λ a → [])
+
 ⟨_⟩ : Set → Session
-⟨ A ⟩ = A ∷ (♯ λ a → [])
+⟨ A ⟩ = ⟨ A w/ discrete ⟩
 
 -- Sequencing
 
 _&_ : Session → Session → Session
 []       & T = T
-(A ∷ Ss) & T = A ∷ (♯ λ a → ♭ Ss a & T)
+(W ∷ Ss) & T = W ∷ (♯ λ a → ♭ Ss a & T)
 
 -- Ensure an initial action
 
 lift : Session → Session
-lift []       = ⊤ ∷ (♯ λ _ → [])
-lift (A ∷ Ss) = A ∷ Ss
+lift []       = ⟨ ⊤ ⟩
+lift (W ∷ Ss) = W ∷ Ss
 
 -- Option
 
@@ -63,7 +98,7 @@ opt S (just a)  = (S / a)
 opt S (nothing) = []
 
 ¿ : Session → Session
-¿ S = (Maybe (Σ (lift S))) ∷ (♯ opt (lift S))
+¿ S = (⟨Maybe⟩ (Δ (lift S))) ∷ (♯ opt (lift S))
 
 -- Choice
 
@@ -72,7 +107,7 @@ choice S T (inj₁ a) = S / a
 choice S T (inj₂ b) = T / b
 
 _⊕_ : Session → Session → Session
-S ⊕ T = (Σ (lift S) ⊎ Σ (lift T)) ∷ (♯ choice (lift S) (lift T))
+S ⊕ T = (Δ (lift S) ⟨⊎⟩ Δ (lift T)) ∷ (♯ choice (lift S) (lift T))
 
 -- Kleene star
 
@@ -84,14 +119,14 @@ mutual
 
   _&¡_ : Session → Session → Session
   []       &¡ T = ¡ T
-  (A ∷ Ss) &¡ T = A ∷ (♯ λ a → ♭ Ss a &¡ T)
+  (W ∷ Ss) &¡ T = W ∷ (♯ λ a → ♭ Ss a &¡ T)
 
   many : ∀ S T → (Maybe (Σ S)) → Session
   many S T (just a) = (S / a) &¡ T
   many S T nothing  = []
 
   ¡ : Session → Session
-  ¡ S = (Maybe (Σ (lift S))) ∷ (♯ many (lift S) S)
+  ¡ S = (⟨Maybe⟩ (Δ (lift S))) ∷ (♯ many (lift S) S)
 
 -- Variant of Kleene star that only admits streams, not lists.
 -- Note that this type has no completed traces, only partial
@@ -101,11 +136,11 @@ mutual
 
   _&ω_ : Session → Session → Session
   []       &ω T = ω T
-  (A ∷ Ss) &ω T = A ∷ (♯ λ a → ♭ Ss a &ω T)
+  (W ∷ Ss) &ω T = W ∷ (♯ λ a → ♭ Ss a &ω T)
 
   inf : ∀ S T → (Σ S) → Session
   inf S T a = (S / a) &ω T
 
   ω : Session → Session
-  ω S = (Σ (lift S)) ∷ (♯ inf (lift S) S)
+  ω S = (Δ (lift S)) ∷ (♯ inf (lift S) S)
 
