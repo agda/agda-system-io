@@ -21,6 +21,10 @@ module System.IO.Transducers.Session where
 
 -- They're a lot like the container types from Ghani, Hancock
 -- and Pattison's "Continuous functions on final coalgebras".
+-- Note that we are supporing weighted sets, similar to theirs,
+-- in order to support induction over weights of input,
+-- e.g. on bytestring input we can do induction over the length
+-- of the bytestring.
 
 -- Finally, they are a lot like automata: states are sessions,
 -- acceptors are leaves, transitions correspond to children.
