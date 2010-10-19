@@ -2,7 +2,7 @@ open import Coinduction using ( ∞ ; ♭ ; ♯_ )
 open import Data.Maybe using ( Maybe ; just ; nothing )
 open import Data.Nat using ( ℕ ; suc )
 open import System.IO.Transducers using ( _⇒_ ; inp ; out ; done ; out*' ; _[&]_ ; _⟫_ ; ¿S⊆¡S )
-open import System.IO.Transducers.Session using ( [] ; _∷_ ; ⟨_⟩ ; _&_ ; ¿ ; ¡ ; _&¡_ ; _/'_ )
+open import System.IO.Transducers.Session using ( [] ; _∷_ ; ⟨_⟩ ; _&_ ; lift ; ¿ ; ¡ ; _&¡_ ; Σ ; _/_ ; opt ; many )
 open import System.IO.Transducers.Trace using ( [] ; _∷_ ; _≤_ )
 open import Relation.Binary.PropositionalEquality using ( _≡_ ; refl )
 
@@ -29,7 +29,7 @@ module System.IO.Transducers.Stateful where
 
 lookahead¿' : ∀ {T S S'} → (S' ≤ S) → (S' ⇒ ¿ T & S) → (S' ⇒ ¿ T & S)
 lookahead¿' {T} as (inp F) = inp (♯ λ a → lookahead¿' {T} (a ∷ as) (♭ F a))
-lookahead¿' {T} as (out nothing P) = out nothing (out*' as done) -- (out*' as done)
+lookahead¿' {T} as (out nothing P) = out nothing (out*' as done)
 lookahead¿' {T} as (out (just x) P) = out (just x) P
 lookahead¿' {T} as (done) = inp (♯ λ a → lookahead¿' {T} (a ∷ as) (out a done))
 
@@ -38,7 +38,7 @@ lookahead¿ {T} = lookahead¿' {T} []
 
 lookahead¡' : ∀ {T S S'} → (S' ≤ S) → (S' ⇒ ¡ T & S) → (S' ⇒ ¡ T & S)
 lookahead¡' {T} as (inp F) = inp (♯ λ a → lookahead¡' {T} (a ∷ as) (♭ F a))
-lookahead¡' {T} as (out nothing P) = out nothing (out*' as done) -- (out*' as done)
+lookahead¡' {T} as (out nothing P) = out nothing (out*' as done)
 lookahead¡' {T} as (out (just x) P) = out (just x) P
 lookahead¡' {T} as (done) = inp (♯ λ a → lookahead¡' {T} (a ∷ as) (out a done))
 
@@ -125,7 +125,7 @@ mutual
   loop' {T} n       (out a P) (inp G)          R = loop' {T} n P (♭ G a) R
   loop' {T} n       done      (inp F)          R = inp (♯ λ a → loop' {T} (suc n) done (♭ F a) R)
   loop' {T} 0       P         (out b Q)        R = P ⟫ out b Q ⟫ (¿S⊆¡S {T} [&] done)
-  loop' {T} (suc n) P         (out (just a) Q) R = out (just a) (loop'' {T} {T /' a} n P Q R)
+  loop' {T} (suc n) P         (out (just b) Q) R = out (just b) (loop'' {T} {lift T / b} n P Q R)
   loop' {T} (suc n) P         (out nothing Q)  R  = P ⟫ out nothing Q
   loop' {T} n       (inp F)   done             R = inp (♯ λ a → loop' {T} (suc n) (♭ F a) done R)
   loop' {T} n       (out a P) done             R = loop' {T} n P (out a done) R

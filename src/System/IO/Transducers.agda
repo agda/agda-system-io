@@ -3,7 +3,7 @@ open import Data.Maybe using ( Maybe ; just ; nothing ; maybe )
 open import Data.Product using ( ∃ ; _,_ ; ,_ )
 open import Data.Sum using ( _⊎_ ; inj₁ ; inj₂ )
 open import Data.Unit using ( ⊤ ; tt )
-open import System.IO.Transducers.Session using ( Session ; [] ; _∷_ ; Σ ; Σ' ; _/_ ; _/'_ ; _&_ ; opt ; ¿ ; choice ; _⊕_ ; _&¡_ ; many ; ¡ )
+open import System.IO.Transducers.Session using ( Session ; [] ; _∷_ ; Σ ; _/_ ; _&_ ; lift ; opt ; ¿ ; choice ; _⊕_ ; _&¡_ ; many ; ¡ )
 open import System.IO.Transducers.Trace using ( _≥_ ; _≤_ ; [] ; _∷_ ; _▷_ )
 open import Relation.Binary.PropositionalEquality using ( _≡_ )
 
@@ -88,10 +88,6 @@ _$_ : ∀ {S T} → (S ⇒ T) → (a : Σ S) → (S / a ⇒ T)
 _$_ {[]}     P ()
 _$_ {A ∷ As} P a = out a done ⟫ P
 
-_$'_ : ∀ {S T} → (S ⇒ T) → (a : Σ' S) → (S /' a ⇒ T)
-_$'_ {[]}    P a = P
-_$'_ {A ∷ S} P a = out a done ⟫ P
-
 -- Delay a process:
 
 delay : ∀ S → ∀ {T U} → (T ⇒ U) → (S & T ⇒ S & U)
@@ -151,6 +147,23 @@ done    ⟨&⟩'[ cs ] done    = buffer cs
 _⟨&⟩'_ : ∀ {S T U} → (S ⇒ T) → (S ⇒ U) → (S ⇒ T & U)
 P ⟨&⟩' Q = P ⟨&⟩'[ [] ] Q
 
+-- Lifting forms an embedding-projection pair
+-- TODO: Formalize the "earlier output" partial order.
+
+lower : ∀ {S} → (lift S ⇒ S)
+lower {[]}     = inp (♯ λ _ → done)
+lower {A ∷ Ss} = done
+
+raise : ∀ {S} → (S ⇒ lift S)
+raise {[]}     = out tt done
+raise {A ∷ Ss} = done
+
+[lift] : ∀ {S T} → (S ⇒ T) → (lift S ⇒ lift T)
+[lift] P = lower ⟫ P ⟫ raise
+
+⟨lift⟩ : ∀ {S T} → (S ⇒ T) → (lift S ⇒ T)
+⟨lift⟩ P = lower ⟫ P
+
 -- Coproduct structure.
 
 κ₁ : ∀ {S T} → (S ⇒ S ⊕ T)
@@ -161,12 +174,12 @@ P ⟨&⟩' Q = P ⟨&⟩'[ [] ] Q
 κ₂ {[]}     = out (inj₂ tt) done
 κ₂ {A ∷ Ss} = inp (♯ λ a → out (inj₂ a) done)
 
-choose : ∀ {S T U} → (S ⇒ U) → (T ⇒ U) → (a : Σ' S ⊎ Σ' T) → (choice S T a ⇒ U)
-choose P Q (inj₁ a) = P $' a
-choose P Q (inj₂ b) = Q $' b
+choose : ∀ {S T U} → (S ⇒ U) → (T ⇒ U) → (a : Σ S ⊎ Σ T) → (choice S T a ⇒ U)
+choose P Q (inj₁ a) = P $ a
+choose P Q (inj₂ b) = Q $ b
 
 _⟨⊕⟩_ : ∀ {S T U} → (S ⇒ U) → (T ⇒ U) → (S ⊕ T ⇒ U)
-P ⟨⊕⟩ Q = inp (♯ choose P Q)
+P ⟨⊕⟩ Q = inp (♯ choose (⟨lift⟩ P) (⟨lift⟩ Q))
 
 -- Specialization of coproducts to the case S ⊕ []
 
@@ -177,12 +190,12 @@ some {A ∷ Ss} = inp (♯ λ a → out (just a) done)
 none : ∀ {S} → ([] ⇒ ¿ S)
 none = out nothing done
 
-decide : ∀ {S T} → (S ⇒ T) → ([] ⇒ T) → (a : Maybe (Σ' S)) → (opt S a ⇒ T)
-decide P Q (just a) = P $' a
+decide : ∀ {S T} → (S ⇒ T) → ([] ⇒ T) → (a : Maybe (Σ S)) → (opt S a ⇒ T)
+decide P Q (just a) = P $ a
 decide P Q nothing  = Q
 
 _⟨¿⟩_ : ∀ {S T} → (S ⇒ T) → ([] ⇒ T) → (¿ S ⇒ T)
-P ⟨¿⟩ Q = inp (♯ decide P Q)
+P ⟨¿⟩ Q = inp (♯ decide (⟨lift⟩ P) Q)
 
 -- Some inclusions, which coerce traces from one session to another.
 
@@ -194,9 +207,9 @@ S⊆S&¡T : ∀ {S T} → (S ⇒ S &¡ T)
 S⊆S&¡T {[]}     = out nothing done
 S⊆S&¡T {A ∷ As} = inp (♯ λ a → out a S⊆S&¡T)
 
-optS⊆manyS : ∀ {S} → (a : Maybe (Σ' S)) → (opt S a ⇒ many S a)
-optS⊆manyS (just a) = S⊆S&¡T
-optS⊆manyS nothing  = done
+optS⊆manyST : ∀ {S T} → (a : Maybe (Σ S)) → (opt S a ⇒ many S T a)
+optS⊆manyST (just a) = S⊆S&¡T
+optS⊆manyST nothing  = done
 
 ¿S⊆¡S : {S : Session} → (¿ S ⇒ ¡ S)
-¿S⊆¡S {S} = inp (♯ λ a → out a (optS⊆manyS {S} a))
+¿S⊆¡S {S} = inp (♯ λ a → out a (optS⊆manyST {lift S} a))

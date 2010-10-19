@@ -31,8 +31,6 @@ data Session : Set₁ where
 
 -- Inital alphabet
 
--- Pessimistic version which treats Σ [] as ⊥
-
 Σ : Session → Set
 Σ []       = ⊥
 Σ (A ∷ Ss) = A
@@ -40,16 +38,6 @@ data Session : Set₁ where
 _/_ : ∀ S → (Σ S) → Session
 [] / ()
 (A ∷ Ss) / a = ♭ Ss a
-
--- Optimistic version which treats Σ' [] as ⊤
-
-Σ' : Session → Set
-Σ' []       = ⊤
-Σ' (A ∷ Ss) = A
-
-_/'_ : ∀ S → (Σ' S) → Session
-[]       /' _ = []
-(A ∷ Ss) /' a = (♭ Ss a)
 
 -- Singletons
 
@@ -62,39 +50,62 @@ _&_ : Session → Session → Session
 []       & T = T
 (A ∷ Ss) & T = A ∷ (♯ λ a → ♭ Ss a & T)
 
+-- Ensure an initial action
+
+lift : Session → Session
+lift []       = ⊤ ∷ (♯ λ _ → [])
+lift (A ∷ Ss) = A ∷ Ss
+
 -- Option
 
-opt : ∀ S → (Maybe (Σ' S)) → Session
-opt S (just a)  = (S /' a)
+opt : ∀ S → (Maybe (Σ S)) → Session
+opt S (just a)  = (S / a)
 opt S (nothing) = []
 
 ¿ : Session → Session
-¿ S = (Maybe (Σ' S)) ∷ (♯ opt S)
+¿ S = (Maybe (Σ (lift S))) ∷ (♯ opt (lift S))
 
 -- Choice
 
-choice : ∀ S T → (Σ' S ⊎ Σ' T) → Session
-choice S T (inj₁ a) = S /' a
-choice S T (inj₂ b) = T /' b
+choice : ∀ S T → (Σ S ⊎ Σ T) → Session
+choice S T (inj₁ a) = S / a
+choice S T (inj₂ b) = T / b
 
 _⊕_ : Session → Session → Session
-S ⊕ T = (Σ' S ⊎ Σ' T) ∷ (♯ choice S T)
+S ⊕ T = (Σ (lift S) ⊎ Σ (lift T)) ∷ (♯ choice (lift S) (lift T))
 
 -- Kleene star
 
 -- It would be nice if I could just define ¡ S = ¿ (S & ¡ S),
 -- but that doesn't pass the termination checker, so I have
 -- to expand out the definition.
-
+ 
 mutual
 
   _&¡_ : Session → Session → Session
   []       &¡ T = ¡ T
   (A ∷ Ss) &¡ T = A ∷ (♯ λ a → ♭ Ss a &¡ T)
 
-  many : ∀ S → (Maybe (Σ' S)) → Session
-  many S (just a) = (S /' a) &¡ S
-  many S nothing  = []
+  many : ∀ S T → (Maybe (Σ S)) → Session
+  many S T (just a) = (S / a) &¡ T
+  many S T nothing  = []
 
   ¡ : Session → Session
-  ¡ S = (Maybe (Σ' S)) ∷ (♯ many S)
+  ¡ S = (Maybe (Σ (lift S))) ∷ (♯ many (lift S) S)
+
+-- Variant of Kleene star that only admits streams, not lists.
+-- Note that this type has no completed traces, only partial
+-- traces (which are isomorphic to partial lists).
+
+mutual
+
+  _&ω_ : Session → Session → Session
+  []       &ω T = ω T
+  (A ∷ Ss) &ω T = A ∷ (♯ λ a → ♭ Ss a &ω T)
+
+  inf : ∀ S T → (Σ S) → Session
+  inf S T a = (S / a) &ω T
+
+  ω : Session → Session
+  ω S = (Σ (lift S)) ∷ (♯ inf (lift S) S)
+
