@@ -1,5 +1,6 @@
 open import Data.String using ( String )
 open import Data.Word using ( Byte )
+open import Data.Natural using ( Natural )
 
 module Data.ByteString.Primitive where
 
@@ -9,6 +10,7 @@ postulate
   consLazy : Byte → ByteStringLazy → ByteStringLazy
   snocLazy : ByteStringLazy → Byte → ByteStringLazy
   appendLazy : ByteStringLazy → ByteStringLazy → ByteStringLazy
+  lengthLazy : ByteStringLazy → Natural
 
 {-# IMPORT Data.ByteString.Lazy #-}
 {-# COMPILED_TYPE ByteStringLazy Data.ByteString.Lazy.ByteString #-}
@@ -16,6 +18,7 @@ postulate
 {-# COMPILED consLazy Data.ByteString.Lazy.cons #-}
 {-# COMPILED snocLazy Data.ByteString.Lazy.snoc #-}
 {-# COMPILED appendLazy Data.ByteString.Lazy.append #-}
+{-# COMPILED lengthLazy fromIntegral . Data.ByteString.Lazy.length #-}
 
 postulate
   ByteStringStrict : Set
@@ -23,6 +26,7 @@ postulate
   consStrict : Byte → ByteStringStrict → ByteStringStrict
   snocStrict : ByteStringStrict → Byte → ByteStringStrict
   appendStrict : ByteStringStrict → ByteStringStrict → ByteStringStrict
+  lengthStrict : ByteStringStrict → Natural
 
 {-# IMPORT Data.ByteString #-}
 {-# COMPILED_TYPE ByteStringStrict Data.ByteString.ByteString #-}
@@ -30,6 +34,7 @@ postulate
 {-# COMPILED consStrict Data.ByteString.cons #-}
 {-# COMPILED snocStrict Data.ByteString.snoc #-}
 {-# COMPILED appendStrict Data.ByteString.append #-}
+{-# COMPILED lengthStrict fromIntegral . Data.ByteString.length #-}
 
 postulate
   mkLazy : ByteStringStrict → ByteStringLazy

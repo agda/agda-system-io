@@ -1,10 +1,9 @@
 open import Coinduction using ( ∞ ; ♭ ; ♯_ )
 open import Data.Maybe using ( Maybe ; just ; nothing ; maybe )
-open import Data.Nat using ( ℕ )
 open import Data.Product using ( ∃ ; _,_ ; ,_ )
 open import Data.Sum using ( _⊎_ ; inj₁ ; inj₂ )
 open import Data.Unit using ( ⊤ ; tt )
-open import System.IO.Transducers.Session using ( Session ; [] ; _∷_ ; Σ ; _/_ ; _&_ ; lift ; opt ; ¿ ; choice ; _⊕_ ; _&¡_ ; many ; ¡ )
+open import System.IO.Transducers.Session using ( Weighted ; Session ; [] ; _∷_ ; Σ ; _/_ ; _&_ ; lift ; opt ; ¿ ; choice ; _⊕_ ; _&¡_ ; many ; ¡ )
 open import System.IO.Transducers.Trace using ( _≥_ ; _≤_ ; [] ; _∷_ ; _▷_ )
 open import Relation.Binary.PropositionalEquality using ( _≡_ )
 
@@ -25,8 +24,8 @@ infixr 4 _⇒_ Inp_⇒_
 infixr 6 _⟫_
 
 data _⇒_ : Session → Session → Set₁ where
-  inp : ∀ {A Ss T} → {V : A → ℕ} → ∞ ((a : A) → (♭ Ss a ⇒ T)) → (V ∷ Ss ⇒ T)
-  out : ∀ {B S Ts} → {W : B → ℕ} → (b : B) → (S ⇒ ♭ Ts b) → (S ⇒ W ∷ Ts)
+  inp : ∀ {A Ss T} → {V : Weighted A} → ∞ ((a : A) → (♭ Ss a ⇒ T)) → (V ∷ Ss ⇒ T)
+  out : ∀ {B S Ts} → {W : Weighted B} → (b : B) → (S ⇒ ♭ Ts b) → (S ⇒ W ∷ Ts)
   done : ∀ {S} → (S ⇒ S)
 
 -- Input transducer function type

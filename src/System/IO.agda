@@ -1,5 +1,5 @@
 open import Data.String using ( String )
-open import Data.ByteString.Static using ( ByteString ; Style ; lazy ; strict ; toString ; fromString ; utf8 )
+open import Data.ByteString using ( ByteString ; Style ; lazy ; strict ; toString ; fromString ; utf8 )
 open import System.IO.Primitive using ( HandleR ; HandleW ; hOpenR ; hOpenW ; hCloseR ; hCloseW ; hGetStrict ; hGetLazy ; hPutStrict ; hPutLazy )
 
 -- A proposed binding for the Haskell IO library.

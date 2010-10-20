@@ -1,5 +1,5 @@
 open import Coinduction using ( ∞ )
-open import Data.ByteString.Static using ( ByteString ; strict ; lazy )
+open import Data.ByteString using ( ByteString ; strict ; lazy )
 open import Data.String using ( String )
 
 module System.IO.Primitive where

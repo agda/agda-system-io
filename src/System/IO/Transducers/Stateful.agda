@@ -1,6 +1,6 @@
 open import Coinduction using ( ∞ ; ♭ ; ♯_ )
 open import Data.Maybe using ( Maybe ; just ; nothing )
-open import Data.Nat using ( ℕ ; suc ; _+_ )
+open import Data.Nat using ( ℕ ; zero ; suc ; _+_ )
 open import System.IO.Transducers using ( _⇒_ ; inp ; out ; done ; out*' ; _[&]_ ; _⟫_ ; ¿S⊆¡S )
 open import System.IO.Transducers.Session using ( [] ; _∷_ ; ⟨_⟩ ; _&_ ; lift ; ¿ ; ¡ ; _&¡_ ; Σ ; Δ ; _/_ ; ⟨Maybe⟩ )
 open import System.IO.Transducers.Trace using ( [] ; _∷_ ; _≤_ )
@@ -101,8 +101,6 @@ mutual
   -- TODO: Find a way to statically enforce contraction and non-expansion maps.
   --   Or alternatively, give in and allow coinductive output,
   --   and hence lose termination for transducers.
-  -- TODO: Find a way to use a built-in Haskell numeric type,
-  --   rather than Agda's unary ℕ.
   -- TODO: Present this as a trace structure?  Show that
   --   it has the expected properties on contracting morphisms.
  
@@ -124,7 +122,7 @@ mutual
   loop' {T} {W ∷ Rs} n       (inp F)   (inp G)          R = inp (♯ λ a → loop' {T} (W a + n) (♭ F a) (inp G) R)
   loop' {T}          n       (out a P) (inp G)          R = loop' {T} n P (♭ G a) R
   loop' {T} {W ∷ Rs} n       done      (inp F)          R = inp (♯ λ a → loop' {T} (W a + n) done (♭ F a) R)
-  loop' {T}          0       P         (out b Q)        R = P ⟫ out b Q ⟫ (¿S⊆¡S {T} [&] done)
+  loop' {T}          zero    P         (out b Q)        R = P ⟫ out b Q ⟫ (¿S⊆¡S {T} [&] done)
   loop' {T}          (suc n) P         (out (just b) Q) R = out (just b) (loop'' {T} {lift T / b} n P Q R)
   loop' {T}          (suc n) P         (out nothing Q)  R  = P ⟫ out nothing Q
   loop' {T} {W ∷ Rs} n       (inp F)   done             R = inp (♯ λ a → loop' {T} (W a + n) (♭ F a) done R)
@@ -132,4 +130,4 @@ mutual
   loop' {T}          n       done      done             R = inp (♯ λ a → loop' {T} (⟨Maybe⟩ (Δ (lift T)) a + n) done (out a done) R)
 
 loop : ∀ {T S} → (S ⇒ ¿ T & S) → (S ⇒ ¡ T & S)
-loop {T} P = loop' {T} 0 done P P
+loop {T} P = loop' {T} zero done P P

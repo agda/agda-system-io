@@ -4,6 +4,7 @@ open import Data.Maybe using ( Maybe ; just ; nothing )
 open import Data.Sum using ( _⊎_ ; inj₁ ; inj₂ )
 open import Data.Unit using ( ⊤ )
 open import Data.Nat using ( ℕ )
+open import Data.ByteString using ( ByteString ; strict ; size )
 open import Level using ( Level )
 
 module System.IO.Transducers.Session where
@@ -21,7 +22,7 @@ module System.IO.Transducers.Session where
 
 -- They're a lot like the container types from Ghani, Hancock
 -- and Pattison's "Continuous functions on final coalgebras".
--- Note that we are supporing weighted sets, similar to theirs,
+-- Note that we are supporting weighted sets, similar to theirs,
 -- in order to support induction over weights of input,
 -- e.g. on bytestring input we can do induction over the length
 -- of the bytestring.
@@ -33,31 +34,36 @@ infixl 5 _/_
 infixr 6 _⊕_
 infixr 7 _&_ _&¡_
 
+-- Weighting for a set
+
+Weighted : Set → Set
+Weighted A = A → ℕ
+
 -- Sessions are trees of weighted sets
 
 data Session : Set₁ where
   [] : Session
-  _∷_ : {A : Set} → (W : A → ℕ) → (Ss : ∞ (A → Session)) → Session
+  _∷_ : {A : Set} → (W : Weighted A) → (Ss : ∞ (A → Session)) → Session
 
 -- Domain of a weighting function
 
-dom : ∀ {A} → (A → ℕ) → Set
+dom : ∀ {A} → (Weighted A) → Set
 dom {A} W = A
 
 -- Discrete weighting function
 
-discrete : ∀ {A} → (A → ℕ)
+discrete : ∀ {A} → (Weighted A)
 discrete a = 1
 
 -- Optional weighting function
 
-⟨Maybe⟩ : ∀ {A} → (A → ℕ) → (Maybe A → ℕ)
+⟨Maybe⟩ : ∀ {A} → (Weighted A) → (Weighted (Maybe A))
 ⟨Maybe⟩ W (just a) = W a
 ⟨Maybe⟩ W nothing  = 1
 
 -- Choice weighting function
 
-_⟨⊎⟩_ : ∀ {A B} → (A → ℕ) → (B → ℕ) → ((A ⊎ B) → ℕ)
+_⟨⊎⟩_ : ∀ {A B} → (Weighted A) → (Weighted B) → (Weighted (A ⊎ B))
 (V ⟨⊎⟩ W) (inj₁ a) = V a
 (V ⟨⊎⟩ W) (inj₂ b) = W b
 
@@ -67,7 +73,7 @@ _⟨⊎⟩_ : ∀ {A B} → (A → ℕ) → (B → ℕ) → ((A ⊎ B) → ℕ)
 Σ []       = ⊥
 Σ (A ∷ Ss) = dom A
 
-Δ : ∀ S → (Σ S → ℕ)
+Δ : ∀ S → (Weighted (Σ S))
 Δ []       ()
 Δ (W ∷ Ss) a = W a
 
@@ -77,7 +83,7 @@ _/_ : ∀ S → (Σ S) → Session
 
 -- Singletons
 
-⟨_w/_⟩ : (A : Set) → (A → ℕ) → Session
+⟨_w/_⟩ : (A : Set) → (Weighted A) → Session
 ⟨ A w/ W ⟩ = W ∷ (♯ λ a → [])
 
 ⟨_⟩ : Set → Session
@@ -148,3 +154,7 @@ mutual
   ω : Session → Session
   ω S = (Δ (lift S)) ∷ (♯ inf (lift S) S)
 
+-- Bytes
+
+Bytes : Session
+Bytes = ¡ ⟨ ByteString strict w/ size ⟩

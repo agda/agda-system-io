@@ -1,41 +1,69 @@
--- Bytestrings where we track dynamically if they're lazy or strict
+-- ByteStrings where we track statically if they're lazy or strict
 -- Note that lazy and strict bytestrings have the same semantics
 -- in Agda, as all computation is guaranteed to terminate.
 -- They may, however, have quite different performance characteristics.
 
+open import Data.Nat using ( ℕ )
+open import Data.Natural using ( Natural ; % )
 open import Data.Word using ( Byte )
-open import Data.Bytestring.Static using ( inj ) 
-  renaming ( Bytestring to Bytestring' ; ε to ε' ; _◁_ to _◁'_ ; _▷_ to _▷'_ ; _∙_ to _∙'_ )
+open import Data.String using ( String )
+open import Data.ByteString.Primitive 
 
-module Data.Bytestring where
+module Data.ByteString where
 
-open Data.Bytestring.Static public using ( Style ; lazy ; strict )
+open Data.ByteString.Primitive public using ( mkStrict ; mkLazy )
 
-data Bytestring : Set where
-  lazy : (bs : Bytestring' lazy) → Bytestring
-  strict : (bs : Bytestring' strict) → Bytestring
+data Style : Set where
+  lazy strict : Style
 
-style : Bytestring → Style
-style (lazy bs)   = lazy
-style (strict bs) = strict
+ByteString : Style → Set
+ByteString strict = ByteStringStrict
+ByteString lazy   = ByteStringLazy
 
-static : (bs : Bytestring) → (Bytestring' (style bs))
-static (lazy bs)   = bs
-static (strict bs) = bs
+ε : {s : Style} → (ByteString s)
+ε {lazy}   = emptyLazy
+ε {strict} = emptyStrict
 
-ε : Bytestring
-ε = strict ε'
+_∙_ : {s : Style} → (ByteString s) → (ByteString s) → (ByteString s)
+_∙_ {lazy}   = appendLazy
+_∙_ {strict} = appendStrict
 
-_◁_ : Byte → Bytestring → Bytestring
-b ◁ (lazy bs)   = lazy (b ◁' bs)
-b ◁ (strict bs) = strict (b ◁' bs)
+_◁_ : {s : Style} → Byte → (ByteString s) → (ByteString s)
+_◁_ {lazy}   = consLazy
+_◁_ {strict} = consStrict
 
-_▷_ : Bytestring → Byte → Bytestring
-(lazy bs)   ▷ b = lazy (bs ▷' b)
-(strict bs) ▷ b = strict (bs ▷' b)
+_▷_ : {s : Style} → (ByteString s) → Byte → (ByteString s)
+_▷_ {lazy}   = snocLazy
+_▷_ {strict} = snocStrict
 
-_∙_ : Bytestring → Bytestring → Bytestring
-lazy bs   ∙ lazy bs'   = lazy   (bs     ∙' bs'    )
-lazy bs   ∙ strict bs' = lazy   (bs     ∙' inj bs')
-strict bs ∙ lazy bs'   = lazy   (inj bs ∙' bs'    )
-strict bs ∙ strict bs' = strict (bs     ∙' bs'    )
+length : {s : Style} → (ByteString s) → Natural
+length {lazy}   = lengthLazy
+length {strict} = lengthStrict
+
+size : {s : Style} → (ByteString s) → ℕ
+size bs = %(length bs)
+
+-- TODO: Better handling of codecs?
+
+data Codec : Set where
+  utf8 : Codec
+
+toStringLazy : (c : Codec) → (ByteString lazy) → String
+toStringLazy utf8 bs = toStringUTF8 bs
+
+toStringStrict : (c : Codec) → (ByteString strict) → String
+toStringStrict c bs = toStringLazy c (mkLazy bs)
+
+toString : (c : Codec) → {s : Style} → (ByteString s) → String
+toString c {lazy} = toStringLazy c
+toString c {strict} = toStringStrict c
+
+fromStringLazy : (c : Codec) → String → (ByteString lazy)
+fromStringLazy utf8 s = fromStringUTF8 s
+
+fromStringStrict : (c : Codec) → String → (ByteString strict)
+fromStringStrict c s = mkStrict (fromStringLazy c s)
+
+fromString : (c : Codec) → {s : Style} → String → (ByteString s)
+fromString c {lazy} = fromStringLazy c
+fromString c {strict} = fromStringStrict c

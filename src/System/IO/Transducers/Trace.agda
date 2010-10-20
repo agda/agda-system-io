@@ -1,6 +1,5 @@
 open import Coinduction using ( ∞ ; ♭ ; ♯_ )
-open import Data.Nat using ( ℕ )
-open import System.IO.Transducers.Session using ( Session ; [] ; _∷_ ; dom ; Σ ; _/_ )
+open import System.IO.Transducers.Session using ( Weighted ; Session ; [] ; _∷_ ; dom ; Σ ; _/_ )
 
 module System.IO.Transducers.Trace where
 
@@ -16,13 +15,13 @@ infixr 5 _∷_ _++_ _++'_
 
 data _≥_ : Session → Session → Set₁ where
   [] : ∀ {S} → (S ≥ S)
-  _∷_ : ∀ {A Ss T} → {V : A → ℕ} → (a : A) → (as : (♭ Ss a) ≥ T) → ((V ∷ Ss) ≥ T)
+  _∷_ : ∀ {A Ss T} → {V : Weighted A} → (a : A) → (as : (♭ Ss a) ≥ T) → ((V ∷ Ss) ≥ T)
 
 -- Or they can be built bottom-up, as paths from a subtree back to the root:
 
 data _≤_ : Session → Session → Set₁ where
   [] : ∀ {S} → (S ≤ S)
-  _∷_ : ∀ {A Ss T} → {V : A → ℕ} → (a : A) → (as : (V ∷ Ss) ≤ T) → (♭ Ss a ≤ T)
+  _∷_ : ∀ {A Ss T} → {V : Weighted A} → (a : A) → (as : (V ∷ Ss) ≤ T) → (♭ Ss a ≤ T)
 
 -- Traces form categories, where composition is concatenation.
 
