@@ -1,15 +1,5 @@
 -- A simple word counter
 
--- open import Data.Bool using ( Bool ; true ; false ; not )
--- open import Data.Char using ( Char )
--- open import Data.ByteString using ( ByteString ) renaming ( length to lengthBS )
--- open import Data.Product using ( _×_ ; _,_ )
--- open import Data.Word using ( Byte )
--- open import Data.String using ( String )
--- open import System.IO.Transducers using ( _⇒_ ; Inp_⇒_ ; inp ; out ; done ; _⟫_ ; _[&]_ ; π₁ ; π₂ ; _⟨&⟩'_ )
--- open import System.IO.Transducers.Stateful using ( loop )
--- open import System.IO.Transducers.Session using ( Session ; [] ; _∷_ ; ⟨_⟩ ; _&_ ; ¿ ; ¡ ; _&¡_ ; Bytes )
-
 open import Coinduction using ( ♯_ )
 open import Data.Char.Classifier using ( isSpace )
 open import Data.Maybe using ( Maybe ; just ; nothing )
