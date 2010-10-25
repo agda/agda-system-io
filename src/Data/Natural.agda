@@ -1,15 +1,14 @@
 -- A binding to a Haskell natural numbers type
 
-open import Data.Nat using ( ℕ ; zero ; suc )
-
-open import Data.Natural.Primitive using ( fromℕ )
+open import Data.Nat using ( ℕ ) renaming ( zero to zero' ; suc to suc' )
 
 module Data.Natural where
 
-open Data.Natural.Primitive public using ( Natural ; _+_ ; show ; foldl ; foldl' ; foldr ) 
+open import Data.Natural.Primitive public using ( Natural ; zero ; suc ; _+_ ; show ; foldl ; foldl' ; foldr ) 
 
 # : ℕ → Natural
-# = fromℕ
+# zero'    = zero
+# (suc' n) = suc (# n)
 
 % : Natural → ℕ
-% = foldl suc zero
+% = foldr suc' zero'

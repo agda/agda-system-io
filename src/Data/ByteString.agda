@@ -3,8 +3,10 @@
 -- in Agda, as all computation is guaranteed to terminate.
 -- They may, however, have quite different performance characteristics.
 
+open import Data.Bool using ( Bool )
 open import Data.Nat using ( ℕ )
 open import Data.Natural using ( Natural ; % )
+open import Data.Product using ( _×_ ; _,_ )
 open import Data.Word using ( Byte )
 open import Data.String using ( String )
 open import Data.ByteString.Primitive 
@@ -43,27 +45,18 @@ length {strict} = lengthStrict
 size : {s : Style} → (ByteString s) → ℕ
 size bs = %(length bs)
 
--- TODO: Better handling of codecs?
+null : {s : Style} → (ByteString s) → Bool
+null {lazy}   = nullLazy
+null {strict} = nullStrict
 
-data Codec : Set where
-  utf8 : Codec
+span : {s : Style} → (Byte → Bool) → (ByteString s) → (ByteString s × ByteString s)
+span {lazy}   φ bs with spanLazy φ bs
+span {lazy}   φ bs | bs² = (lazy₁ bs² , lazy₂ bs²)
+span {strict} φ bs with spanStrict φ bs
+span {strict} φ bs | bs² = (strict₁ bs² , strict₂ bs²)
 
-toStringLazy : (c : Codec) → (ByteString lazy) → String
-toStringLazy utf8 bs = toStringUTF8 bs
-
-toStringStrict : (c : Codec) → (ByteString strict) → String
-toStringStrict c bs = toStringLazy c (mkLazy bs)
-
-toString : (c : Codec) → {s : Style} → (ByteString s) → String
-toString c {lazy} = toStringLazy c
-toString c {strict} = toStringStrict c
-
-fromStringLazy : (c : Codec) → String → (ByteString lazy)
-fromStringLazy utf8 s = fromStringUTF8 s
-
-fromStringStrict : (c : Codec) → String → (ByteString strict)
-fromStringStrict c s = mkStrict (fromStringLazy c s)
-
-fromString : (c : Codec) → {s : Style} → String → (ByteString s)
-fromString c {lazy} = fromStringLazy c
-fromString c {strict} = fromStringStrict c
+break : {s : Style} → (Byte → Bool) → (ByteString s) → (ByteString s × ByteString s)
+break {lazy}   φ bs with breakLazy φ bs
+break {lazy}   φ bs | bs² = (lazy₁ bs² , lazy₂ bs²)
+break {strict} φ bs with breakStrict φ bs
+break {strict} φ bs | bs² = (strict₁ bs² , strict₂ bs²)

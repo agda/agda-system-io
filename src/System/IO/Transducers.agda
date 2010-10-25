@@ -1,9 +1,11 @@
 open import Coinduction using ( ∞ ; ♭ ; ♯_ )
 open import Data.Maybe using ( Maybe ; just ; nothing ; maybe )
-open import Data.Product using ( ∃ ; _,_ ; ,_ )
+open import Data.Natural using ( Natural ; _+_ ; # )
+open import Data.Product using ( ∃ ; _×_ ; _,_ ; ,_ )
+open import Data.Strict using ( Strict ; ! )
 open import Data.Sum using ( _⊎_ ; inj₁ ; inj₂ )
 open import Data.Unit using ( ⊤ ; tt )
-open import System.IO.Transducers.Session using ( Weighted ; Session ; [] ; _∷_ ; Σ ; _/_ ; _&_ ; lift ; opt ; ¿ ; choice ; _⊕_ ; _&¡_ ; many ; ¡ )
+open import System.IO.Transducers.Session using ( Weighted ; Session ; [] ; _∷_ ; Σ ; _/_ ; ⟨_⟩ ; _&_ ; lift ; opt ; ¿ ; choice ; _⊕_ ; _&¡_ ; many ; ¡ )
 open import System.IO.Transducers.Trace using ( _≥_ ; _≤_ ; [] ; _∷_ ; _▷_ )
 open import Relation.Binary.PropositionalEquality using ( _≡_ )
 
@@ -46,15 +48,20 @@ out*' : ∀ {S T T'} → (T' ≤ T) → (S ⇒ T') → (S ⇒ T)
 out*' []       P = P
 out*' (b ∷ bs) P = out*' bs (out b P)
 
--- The semantics of a transducer is given by its I/O behaviour
--- on possibly incomplete traces.
+-- Operational semantics.
+
+S⟦_⟧ : ∀ {S T} → (S ⇒ T) → ∀ {S'} → (S ≥ S') → (∃ λ T' → (S' ⇒ T') × (T ≥ T'))
+S⟦ inp F   ⟧ []                  = (_ , inp F , [])
+S⟦ inp F   ⟧ (a ∷ as)            = S⟦ ♭ F a ⟧ as
+S⟦ out b P ⟧ as with S⟦ P ⟧ as
+S⟦ out b P ⟧ as | (T' , P' , bs) = (T' , P' , b ▷ bs)
+S⟦ done    ⟧ as                  = (_ , done , as)
+
+-- Semantics on incomplete traces
 
 I⟦_⟧ : ∀ {S T} → (S ⇒ T) → ∀ {S'} → (S ≥ S') → (∃ λ T' → T ≥ T')
-I⟦ inp F   ⟧ []             = (, [])
-I⟦ inp F   ⟧ (a ∷ as)       = I⟦ ♭ F a ⟧ as
-I⟦ out b P ⟧ as with I⟦ P ⟧ as
-I⟦ out b P ⟧ as | (T' , bs) = (, b ▷ bs)
-I⟦ done    ⟧ as             = (, as)
+I⟦ P ⟧ as with S⟦ P ⟧ as
+I⟦ P ⟧ as | (T' , P' , bs) = (T' , bs)
 
 -- Transducer equivalence is defined extensionally, over
 -- possibly incomplete traces.
@@ -119,33 +126,32 @@ discard {A ∷ Ss} = inp (♯ λ a → discard)
 -- The category is actually cartesian, but only at the cost of
 -- buffering.  WARNING.  BUFFERING.  This is bad.  Do not do this.
 
-buffer : ∀ {S T} → (as : S ≤ T) → (S ⇒ S & T)
-buffer {[]}    as = out*' as done
-buffer {A ∷ S} as = inp (♯ λ a → out a (buffer (a ∷ as)))
+-- This implementation uses output buffering, hopefully output
+-- is usually smaller than input.
+
+buffer : ∀ {S T} → (S ≤ T) → (S ⇒ S & T)
+buffer {[]}     as = out*' as done
+buffer {W ∷ Ss} as = inp (♯ λ a → out a (buffer (a ∷ as)))
+
+_⟨&⟩[_]_ : ∀ {S T U V} → (S ⇒ T) → (U ≤ V) → (S ⇒ U) → (S ⇒ T & V)
+inp F   ⟨&⟩[ cs ] inp G   = inp (♯ λ a → ♭ F a ⟨&⟩[ cs ] ♭ G a)
+inp F   ⟨&⟩[ cs ] out c Q = inp F ⟨&⟩[ c ∷ cs ] Q
+inp F   ⟨&⟩[ cs ] done    = inp (♯ λ a → ♭ F a ⟨&⟩[ a ∷ cs ] done)
+out c P ⟨&⟩[ cs ] Q       = out c (P ⟨&⟩[ cs ] Q)
+done    ⟨&⟩[ cs ] inp F   = inp (♯ λ a → out a done ⟨&⟩[ cs ] ♭ F a)
+done    ⟨&⟩[ cs ] out c Q = done ⟨&⟩[ c ∷ cs ] Q
+done    ⟨&⟩[ cs ] done    = buffer cs
+
+_⟨&⟩_ : ∀ {S T U} → (S ⇒ T) → (S ⇒ U) → (S ⇒ T & U)
+P ⟨&⟩ Q = P ⟨&⟩[ [] ] Q
+
+-- If you want input buffering, you can implement it using copy and _[&]_.
 
 copy : ∀ {S} → (S ⇒ S & S)
 copy = buffer []
 
-_⟨&⟩_ : ∀ {S T U} → (S ⇒ T) → (S ⇒ U) → (S ⇒ T & U)
-P ⟨&⟩ Q = copy ⟫ P [&] Q
-
 swap : ∀ {S T} → (S & T ⇒ T & S)
 swap {S} = π₂ {S} ⟨&⟩ π₁ {S}
-
--- We can also implement the mediating morphism for product using
--- output buffering rather than input buffering.
- 
-_⟨&⟩'[_]_ : ∀ {S T U V} → (S ⇒ T) → (U ≤ V) → (S ⇒ U) → (S ⇒ T & V)
-inp F   ⟨&⟩'[ cs ] inp G   = inp (♯ λ a → ♭ F a ⟨&⟩'[ cs ] ♭ G a)
-inp F   ⟨&⟩'[ cs ] out c Q = inp F ⟨&⟩'[ c ∷ cs ] Q
-inp F   ⟨&⟩'[ cs ] done    = inp (♯ λ a → ♭ F a ⟨&⟩'[ a ∷ cs ] done)
-out c P ⟨&⟩'[ cs ] Q       = out c (P ⟨&⟩'[ cs ] Q)
-done    ⟨&⟩'[ cs ] inp F   = inp (♯ λ a → out a done ⟨&⟩'[ cs ] ♭ F a)
-done    ⟨&⟩'[ cs ] out c Q = done ⟨&⟩'[ c ∷ cs ] Q
-done    ⟨&⟩'[ cs ] done    = buffer cs
-
-_⟨&⟩'_ : ∀ {S T U} → (S ⇒ T) → (S ⇒ U) → (S ⇒ T & U)
-P ⟨&⟩' Q = P ⟨&⟩'[ [] ] Q
 
 -- Lifting forms an embedding-projection pair
 -- TODO: Formalize the "earlier output" partial order.
@@ -196,6 +202,49 @@ decide P Q nothing  = Q
 
 _⟨¿⟩_ : ∀ {S T} → (S ⇒ T) → ([] ⇒ T) → (¿ S ⇒ T)
 P ⟨¿⟩ Q = inp (♯ decide (⟨lift⟩ P) Q)
+
+-- Weight of a trace
+
+weight' : ∀ {S} → (Strict Natural) → S ⇒ ⟨ Natural ⟩
+weight' {[]} (! n) = out n done
+weight' {W ∷ Ss} (! n) = inp (♯ λ a → weight' (! (n + W a)))
+
+weight : ∀ {S} → S ⇒ ⟨ Natural ⟩
+weight = weight' (! (# 0))
+
+-- Length of a list
+
+mutual
+
+  length'' : ∀ {T S} → (Strict Natural) → T &¡ S ⇒ ⟨ Natural ⟩
+  length'' {[]}     {S} (! n) = inp (♯ length' {S} (! n))
+  length'' {V ∷ Ts} {S} (! n) = inp (♯ λ x → length'' {♭ Ts x} {S} (! n))
+
+  length' : ∀ {S} → (Strict Natural) → Inp ¡ S ⇒ ⟨ Natural ⟩
+  length' {S} (! n) (just x) = length'' {lift S / x} {S} (! (n + # 1))
+  length' {S} (! n) nothing  = out n done
+
+length : ∀ {S} → (¡ S) ⇒ ⟨ Natural ⟩
+length {S} = inp (♯ length' {S} (! (# 0)))
+
+-- Flatten a list of lists
+
+mutual
+
+  concat''' : ∀ {T S} → (T &¡ S) &¡ ¡ S ⇒ T &¡ S
+  concat''' {[]}     {S} = inp (♯ concat'' {S})
+  concat''' {V ∷ Ts} {S} = inp (♯ λ x → out x (concat''' {♭ Ts x} {S}))
+
+  concat'' : ∀ {S} → Inp ¡ S &¡ ¡ S ⇒ ¡ S
+  concat'' {S} (just x) = out (just x) (concat''' {lift S / x} {S})
+  concat'' {S} nothing  = inp (♯ concat' {S})
+
+  concat' : ∀ {S} → Inp (¡ (¡ S)) ⇒ (¡ S)
+  concat' {S} (just x) = concat'' {S} x
+  concat' {S} nothing  = out nothing done
+
+concat : ∀ {S}  → (¡ (¡ S)) ⇒ (¡ S)
+concat {S} = inp (♯ concat' {S})
 
 -- Some inclusions, which coerce traces from one session to another.
 

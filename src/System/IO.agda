@@ -1,5 +1,6 @@
 open import Data.String using ( String )
-open import Data.ByteString using ( ByteString ; Style ; lazy ; strict ; toString ; fromString ; utf8 )
+open import Data.ByteString using ( ByteString ; Style ; lazy ; strict )
+open import Data.ByteString.UTF8 using ( toString ; fromString )
 open import System.IO.Primitive using ( HandleR ; HandleW ; hOpenR ; hOpenW ; hCloseR ; hCloseW ; hGetStrict ; hGetLazy ; hPutStrict ; hPutLazy )
 
 -- A proposed binding for the Haskell IO library.
@@ -74,13 +75,13 @@ hClose {write} = hCloseW
 -- Default arguments would help a lot here.
 
 hGetStr : (Handle read) → (IO String)
-hGetStr hdl = toString utf8 <$> hGetBytes {lazy} hdl
+hGetStr hdl = toString <$> hGetBytes {lazy} hdl
 
 getStr : (IO String)
 getStr = hGetStr stdin
 
 hPutStr : (Handle write) → String → Command
-hPutStr hdl s = hPutBytes {lazy} hdl (fromString utf8 s)
+hPutStr hdl s = hPutBytes {lazy} hdl (fromString s)
 
 putStr : String → Command
 putStr = hPutStr stdout

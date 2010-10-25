@@ -3,8 +3,9 @@ open import Data.Empty using ( ⊥ )
 open import Data.Maybe using ( Maybe ; just ; nothing )
 open import Data.Sum using ( _⊎_ ; inj₁ ; inj₂ )
 open import Data.Unit using ( ⊤ )
-open import Data.Nat using ( ℕ )
-open import Data.ByteString using ( ByteString ; strict ; size )
+open import Data.Natural using ( Natural ; # )
+open import Data.String using ( String )
+open import Data.ByteString using ( ByteString ; strict ; length )
 open import Level using ( Level )
 
 module System.IO.Transducers.Session where
@@ -37,7 +38,7 @@ infixr 7 _&_ _&¡_
 -- Weighting for a set
 
 Weighted : Set → Set
-Weighted A = A → ℕ
+Weighted A = A → Natural
 
 -- Sessions are trees of weighted sets
 
@@ -53,13 +54,13 @@ dom {A} W = A
 -- Discrete weighting function
 
 discrete : ∀ {A} → (Weighted A)
-discrete a = 1
+discrete a = # 1
 
 -- Optional weighting function
 
 ⟨Maybe⟩ : ∀ {A} → (Weighted A) → (Weighted (Maybe A))
 ⟨Maybe⟩ W (just a) = W a
-⟨Maybe⟩ W nothing  = 1
+⟨Maybe⟩ W nothing  = # 1
 
 -- Choice weighting function
 
@@ -157,4 +158,9 @@ mutual
 -- Bytes
 
 Bytes : Session
-Bytes = ¡ ⟨ ByteString strict w/ size ⟩
+Bytes = ¡ ⟨ ByteString strict w/ length ⟩
+
+-- TODO: weight strings by their length?
+
+Strings : Session
+Strings = ¡ ⟨ String ⟩

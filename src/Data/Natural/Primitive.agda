@@ -3,6 +3,8 @@ open import Data.String using ( String )
 
 module Data.Natural.Primitive where
 
+infixl 6 _+_ 
+
 postulate 
   Natural : Set
   zero : Natural
@@ -21,13 +23,3 @@ postulate
 {-# COMPILED foldl (\ _ -> Data.Natural.AgdaFFI.nfoldl) #-}
 {-# COMPILED foldl' (\ _ -> Data.Natural.AgdaFFI.nfoldl') #-}
 {-# COMPILED foldr (\ _ -> Data.Natural.AgdaFFI.nfoldr) #-}
-
--- A hack to get round the fact that ℕ has no FFI binding
-
-private
-  postulate
-    # : {A : Set} → A → Natural
-{-# COMPILED # (\ _ -> fromInteger . MAlonzo.Data.Nat.mazNatToInteger . Unsafe.Coerce.unsafeCoerce) #-}
-
-fromℕ : ℕ → Natural
-fromℕ = #

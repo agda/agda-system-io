@@ -1,7 +1,6 @@
 module Data.Natural.AgdaFFI ( Natural, nfoldl, nfoldl', nfoldr ) where
 
 import Unsafe.Coerce (unsafeCoerce )
-import MAlonzo.Data.Nat ( mazNatToInteger, mazIntegerToNat )
 
 newtype Natural = Natural Integer
   deriving Eq
