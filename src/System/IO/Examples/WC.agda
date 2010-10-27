@@ -25,7 +25,7 @@ report =
   (out (just " ") 
   (inp (♯ λ #words → 
   (out (just (show #words)) 
-  (out (just "\n") 
+  (out (just "\n")
   (out nothing done)))))))))
 
 wc : Bytes ⇒ Bytes

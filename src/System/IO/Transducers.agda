@@ -6,7 +6,7 @@ open import Data.Strict using ( Strict ; ! )
 open import Data.Sum using ( _⊎_ ; inj₁ ; inj₂ )
 open import Data.Unit using ( ⊤ ; tt )
 open import System.IO.Transducers.Session using ( Weighted ; Session ; [] ; _∷_ ; Σ ; _/_ ; ⟨_⟩ ; _&_ ; lift ; opt ; ¿ ; choice ; _⊕_ ; _&¡_ ; many ; ¡ )
-open import System.IO.Transducers.Trace using ( _≥_ ; _≤_ ; [] ; _∷_ ; _▷_ )
+open import System.IO.Transducers.Trace using ( _≥_ ; _≤_ ; Trace ; [] ; _∷_ ; _▷_ )
 open import Relation.Binary.PropositionalEquality using ( _≡_ )
 
 module System.IO.Transducers where
@@ -59,15 +59,17 @@ S⟦ done    ⟧ as                  = (_ , done , as)
 
 -- Semantics on incomplete traces
 
-I⟦_⟧ : ∀ {S T} → (S ⇒ T) → ∀ {S'} → (S ≥ S') → (∃ λ T' → T ≥ T')
-I⟦ P ⟧ as with S⟦ P ⟧ as
-I⟦ P ⟧ as | (T' , P' , bs) = (T' , bs)
+I⟦_⟧ : ∀ {S T} → (S ⇒ T) → (Trace S) → (Trace T)
+I⟦ inp F   ⟧ []             = []
+I⟦ inp F   ⟧ (a ∷ as)       = I⟦ ♭ F a ⟧ as
+I⟦ out b P ⟧ as             = b ∷ I⟦ P ⟧ as
+I⟦ done    ⟧ as             = as
 
 -- Transducer equivalence is defined extensionally, over
 -- possibly incomplete traces.
 
 _≃_ : ∀ {S T} → (S ⇒ T) → (S ⇒ T) → Set₁
-P ≃ Q = ∀ S' → (as : _ ≥ S') → I⟦ P ⟧ as ≡ I⟦ Q ⟧ as
+P ≃ Q = ∀ as → I⟦ P ⟧ as ≡ I⟦ Q ⟧ as
 
 -- Transducers map completed traces to completed traces.
 
@@ -84,10 +86,10 @@ C⟦ done    ⟧ as       = as
 
 _⟫_ : ∀ {S T U} → (S ⇒ T) → (T ⇒ U) → (S ⇒ U)
 P       ⟫ out c Q = out c (P ⟫ Q)
-inp F   ⟫ Q       = inp (♯ λ a → ♭ F a ⟫ Q)
-out b P ⟫ inp G   = P ⟫ ♭ G b
 P       ⟫ done    = P
-done    ⟫ Q       = Q
+inp F   ⟫ inp G   = inp (♯ λ a → ♭ F a ⟫ inp G)
+out b P ⟫ inp G   = P ⟫ ♭ G b
+done    ⟫ inp G   = inp G
 
 -- Apply a process to an argument:
 
@@ -123,24 +125,28 @@ discard {A ∷ Ss} = inp (♯ λ a → discard)
 π₂ {[]}     = done
 π₂ {A ∷ Ss} = inp (♯ λ a → π₂ {♭ Ss a})
 
--- The category is actually cartesian, but only at the cost of
+-- The category is almost cartesian, at the cost of
 -- buffering.  WARNING.  BUFFERING.  This is bad.  Do not do this.
+
+-- The "almost" is due to a failure of the projection properties:
+-- P ⟨&⟩ Q ⟫ π₂ is not equivalent to Q, since Q may do output immediately,
+-- and P ⟨&⟩ Q ⟫ π₂ can only output after it has consumed all its input.
+-- Similarly π₁ ⟨&⟩ π₂ is not equivalent to done, as π₂'s output will
+-- be bufferred.
 
 -- This implementation uses output buffering, hopefully output
 -- is usually smaller than input.
 
-buffer : ∀ {S T} → (S ≤ T) → (S ⇒ S & T)
-buffer {[]}     as = out*' as done
-buffer {W ∷ Ss} as = inp (♯ λ a → out a (buffer (a ∷ as)))
-
 _⟨&⟩[_]_ : ∀ {S T U V} → (S ⇒ T) → (U ≤ V) → (S ⇒ U) → (S ⇒ T & V)
-inp F   ⟨&⟩[ cs ] inp G   = inp (♯ λ a → ♭ F a ⟨&⟩[ cs ] ♭ G a)
-inp F   ⟨&⟩[ cs ] out c Q = inp F ⟨&⟩[ c ∷ cs ] Q
-inp F   ⟨&⟩[ cs ] done    = inp (♯ λ a → ♭ F a ⟨&⟩[ a ∷ cs ] done)
-out c P ⟨&⟩[ cs ] Q       = out c (P ⟨&⟩[ cs ] Q)
-done    ⟨&⟩[ cs ] inp F   = inp (♯ λ a → out a done ⟨&⟩[ cs ] ♭ F a)
-done    ⟨&⟩[ cs ] out c Q = done ⟨&⟩[ c ∷ cs ] Q
-done    ⟨&⟩[ cs ] done    = buffer cs
+inp {T = []}     F ⟨&⟩[ cs ] Q       = out*' cs Q
+inp {T = W ∷ Ts} F ⟨&⟩[ cs ] inp G   = inp (♯ λ a → ♭ F a ⟨&⟩[ cs ] ♭ G a)
+inp {T = W ∷ Ts} F ⟨&⟩[ cs ] out c Q = inp F ⟨&⟩[ c ∷ cs ] Q
+inp {T = W ∷ Ts} F ⟨&⟩[ cs ] done    = inp (♯ λ c → ♭ F c ⟨&⟩[ c ∷ cs ] done)
+out b P            ⟨&⟩[ cs ] Q       = out b (P ⟨&⟩[ cs ] Q)
+done {[]}          ⟨&⟩[ cs ] Q       = out*' cs Q
+done {W ∷ Ts}      ⟨&⟩[ cs ] inp F   = inp (♯ λ a → out a (done ⟨&⟩[ cs ] ♭ F a))
+done {W ∷ Ts}      ⟨&⟩[ cs ] out c Q = done ⟨&⟩[ c ∷ cs ] Q
+done {W ∷ Ts}      ⟨&⟩[ cs ] done    = inp (♯ λ c → out c (done ⟨&⟩[ c ∷ cs ] done))
 
 _⟨&⟩_ : ∀ {S T U} → (S ⇒ T) → (S ⇒ U) → (S ⇒ T & U)
 P ⟨&⟩ Q = P ⟨&⟩[ [] ] Q
@@ -148,7 +154,7 @@ P ⟨&⟩ Q = P ⟨&⟩[ [] ] Q
 -- If you want input buffering, you can implement it using copy and _[&]_.
 
 copy : ∀ {S} → (S ⇒ S & S)
-copy = buffer []
+copy = done ⟨&⟩ done
 
 swap : ∀ {S T} → (S & T ⇒ T & S)
 swap {S} = π₂ {S} ⟨&⟩ π₁ {S}

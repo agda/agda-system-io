@@ -23,6 +23,12 @@ data _≤_ : Session → Session → Set₁ where
   [] : ∀ {S} → (S ≤ S)
   _∷_ : ∀ {A Ss T} → {V : Weighted A} → (a : A) → (as : (V ∷ Ss) ≤ T) → (♭ Ss a ≤ T)
 
+-- Incomplete traces
+
+data Trace : Session → Set₁ where
+  [] : ∀ {S} → (Trace S)
+  _∷_ : ∀ {A Ss} → {V : Weighted A} → (a : A) → (as : Trace (♭ Ss a)) → (Trace (V ∷ Ss))
+
 -- Traces form categories, where composition is concatenation.
 
 _++_ : ∀ {S T U} → (S ≥ T) → (T ≥ U) → (S ≥ U)
