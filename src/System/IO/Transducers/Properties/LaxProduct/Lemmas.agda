@@ -1,14 +1,9 @@
--- For some reason, the termination checker takes a very very long time to check this file.
--- TODO: Optimize for the termination checker
-
-{-# OPTIONS --no-termination-check #-}
-
-open import Coinduction
-open import System.IO.Transducers
-open import System.IO.Transducers.Trace
-open import System.IO.Transducers.Session
-open import System.IO.Transducers.Properties.Lemmas
-open import Relation.Binary.PropositionalEquality
+open import Coinduction using ( ♭ )
+open import System.IO.Transducers using ( _⇒_ ; inp ; out ; done ; _⟫_ ;_⟨&⟩_ ; _⟨&⟩[_]_ ; out*' ; I⟦_⟧ ; _≃_ )
+open import System.IO.Transducers.Trace using ( _≤_ ; [] ; _∷_ )
+open import System.IO.Transducers.Session using ( [] ; _∷_ ; _&_ )
+open import System.IO.Transducers.Properties.Lemmas using ( cong₃ ; ≡-impl-≃ ; ⟫-identity₁ ; ⟫-identity₂ ; out*'-comm-⟫ )
+open import Relation.Binary.PropositionalEquality using ( _≡_ ; refl ; sym ; cong ; cong₂ )
 
 module System.IO.Transducers.Properties.LaxProduct.Lemmas where
 
@@ -35,7 +30,15 @@ open Relation.Binary.PropositionalEquality.≡-Reasoning
 ⟫-dist-⟨&⟩[] (out b P) Q R cs as = 
   cong (_∷_ b) (⟫-dist-⟨&⟩[] P Q R cs as)
 ⟫-dist-⟨&⟩[] P (out c Q) R cs as = 
-  ⟫-dist-⟨&⟩[] P (out c Q) R cs as
+  begin
+    I⟦ R ⟫ P ⟨&⟩[ cs ] out c Q ⟧ as
+  ≡⟨ ≡-impl-≃ (cong₂ _⟫_ refl (⟨&⟩[]-push P c Q cs)) as ⟩
+    I⟦ R ⟫ P ⟨&⟩[ c ∷ cs ] Q ⟧ as
+  ≡⟨ ⟫-dist-⟨&⟩[] P Q R (c ∷ cs) as ⟩
+    I⟦ (R ⟫ P) ⟨&⟩[ c ∷ cs ] (R ⟫ Q) ⟧ as
+  ≡⟨ ≡-impl-≃ (sym (⟨&⟩[]-push (R ⟫ P) c (R ⟫ Q) cs)) as ⟩
+    I⟦ (R ⟫ P) ⟨&⟩[ cs ] out c (R ⟫ Q) ⟧ as
+  ∎
 ⟫-dist-⟨&⟩[] P Q done cs as =
   begin
     I⟦ done ⟫ P ⟨&⟩[ cs ] Q ⟧ as

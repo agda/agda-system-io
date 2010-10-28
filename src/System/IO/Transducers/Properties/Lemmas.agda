@@ -1,10 +1,8 @@
 {-# OPTIONS --universe-polymorphism #-}
 
-open import Coinduction
-open import System.IO.Transducers
-open import System.IO.Transducers.Trace
-open import System.IO.Transducers.Session
-open import Relation.Binary.PropositionalEquality
+open import System.IO.Transducers using ( _⇒_ ; inp ; out ; done ; _⟫_ ; out*' ; _≃_ )
+open import System.IO.Transducers.Trace using ( _≤_ ; [] ; _∷_ ) 
+open import Relation.Binary.PropositionalEquality using ( _≡_ ; refl ; cong )
 
 module System.IO.Transducers.Properties.Lemmas where
 

@@ -1,9 +1,6 @@
-open import Coinduction
-open import System.IO.Transducers
-open import System.IO.Transducers.Trace
-open import System.IO.Transducers.Session
-open import System.IO.Transducers.Properties.LaxProduct.Lemmas
-open import Relation.Binary.PropositionalEquality
+open import System.IO.Transducers using ( _⇒_ ; _⟫_ ; _⟨&⟩_ ; _≃_ )
+open import System.IO.Transducers.Trace using ( [] )
+open import System.IO.Transducers.Properties.LaxProduct.Lemmas using ( ⟫-dist-⟨&⟩[] )
 
 module System.IO.Transducers.Properties.LaxProduct where
 
