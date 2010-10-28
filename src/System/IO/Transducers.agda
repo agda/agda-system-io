@@ -86,10 +86,10 @@ C⟦ done    ⟧ as       = as
 
 _⟫_ : ∀ {S T U} → (S ⇒ T) → (T ⇒ U) → (S ⇒ U)
 P       ⟫ out c Q = out c (P ⟫ Q)
-P       ⟫ done    = P
-inp F   ⟫ inp G   = inp (♯ λ a → ♭ F a ⟫ inp G)
+inp F   ⟫ Q       = inp (♯ λ a → ♭ F a ⟫ Q)
 out b P ⟫ inp G   = P ⟫ ♭ G b
-done    ⟫ inp G   = inp G
+done    ⟫ Q       = Q
+P       ⟫ done    = P
 
 -- Apply a process to an argument:
 
