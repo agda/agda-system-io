@@ -92,19 +92,28 @@ _$_ : ∀ {S T} → (S ⇒ T) → (a : Σ S) → (S / a ⇒ T)
 _$_ {[]}     P ()
 _$_ {A ∷ As} P a = out a done ⟫ P
 
--- Delay a process:
+-- Delay a process
 
-delay : ∀ S → ∀ {T U} → (T ⇒ U) → (S & T ⇒ S & U)
-delay []       P = P
-delay (A ∷ Ss) P = inp (♯ λ a → out a (delay (♭ Ss a) P))
+delay : ∀ S {T U} → (T ⇒ U) → (S & T ⇒ U)
+delay []       P         = P
+delay (W ∷ Ss) (inp F)   = inp (♯ λ a → delay (♭ Ss a) (inp F))
+delay (W ∷ Ss) (out b P) = out b (delay (W ∷ Ss) P)
+delay (W ∷ Ss) done      = inp (♯ λ a → delay (♭ Ss a) done)
 
--- The category has premonoidal structure given by &, with
+-- The category has monoidal structure given by &, with
 -- action on morphisms:
  
 _[&]_ : ∀ {S T U V} → (S ⇒ T) → (U ⇒ V) → (S & U ⇒ T & V)
-inp F   [&] Q    = inp (♯ λ a → ♭ F a [&] Q)
-out b P [&] Q    = out b (P [&] Q)
-_[&]_ {S} done Q = delay S Q
+_[&]_ {S} {T = []} P         Q = delay S Q
+_[&]_ {T = V ∷ Ts} (inp F)   Q = inp (♯ λ a → ♭ F a [&] Q)
+_[&]_ {T = V ∷ Ts} (out b P) Q = out b (P [&] Q)
+_[&]_ {T = V ∷ Ts} done      Q = inp (♯ λ a → out a (done {♭ Ts a} [&] Q))
+
+-- Associativity of &
+
+assoc : ∀ {S T U} → (S & (T & U) ⇒ (S & T) & U)
+assoc {[]}     = done
+assoc {W ∷ Ws} = inp (♯ λ a → out a (assoc {♭ Ws a}))
 
 -- The projection morphisms for [] and &:
 

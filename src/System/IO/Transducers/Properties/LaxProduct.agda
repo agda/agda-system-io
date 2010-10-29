@@ -4,16 +4,12 @@ open import System.IO.Transducers using ( _⇒_ ; inp ; out ; done ; out*' ; _�
 open import System.IO.Transducers.Session using ( [] ; _∷_ ; _&_ )
 open import System.IO.Transducers.Trace using ( _≤_ ; Trace ; [] ; _∷_ )
 open import System.IO.Transducers.Properties.Lemmas using ( cong₃ ; revApp ; out*'-semantics )
+open import System.IO.Transducers.Properties.BraidedMonoidal using ( _++_ )
 open import System.IO.Transducers.Properties.Category using ( _⟦⟫⟧_ ; ⟫-semantics )
 
 module System.IO.Transducers.Properties.LaxProduct where
 
 open Relation.Binary.PropositionalEquality.≡-Reasoning
-
-_++_ : ∀ {S T} → (Trace S) → (Trace T) → (Trace (S & T))
-([] {[]})     ++ bs = bs
-([] {W ∷ Ss}) ++ bs = []
-(a ∷ as)      ++ bs = a ∷ (as ++ bs)
 
 _⟦⟨&⟩⟧_ : ∀ {S T U} → 
   (f : Trace S → Trace T) → (g : Trace S → Trace U) → 
@@ -24,12 +20,6 @@ _⟦⟨&⟩[_]⟧_ : ∀ {S T U V} →
   (Trace S → Trace T) → (U ≤ V) → (Trace S → Trace U) → 
     (Trace S → Trace (T & V))
 (f ⟦⟨&⟩[ cs ]⟧ g) as = f as ++ (revApp cs (g as))
-
-⟦⟫⟧-dist-⟦⟨&⟩⟧ : ∀ {S T U V} → 
-  (f : Trace T → Trace U) → (g : Trace T → Trace V) → (h : Trace S → Trace T) →
-    (h ⟦⟫⟧ (f ⟦⟨&⟩⟧ g) ≃ (h ⟦⟫⟧ f) ⟦⟨&⟩⟧ (h ⟦⟫⟧ g))
-⟦⟫⟧-dist-⟦⟨&⟩⟧ f g h as = 
-  refl
 
 ⟨&⟩[]-semantics : ∀ {S T U V} → 
   (P : S ⇒ T) → (cs : U ≤ V) →  (Q : S ⇒ U) →
