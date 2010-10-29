@@ -1,9 +1,25 @@
-module Data.Natural.AgdaFFI ( Natural, nfoldl, nfoldl', nfoldr ) where
+module Data.Natural.AgdaFFI ( Natural, nfoldl, nfoldl', nfoldr, convert ) where
 
-import Unsafe.Coerce (unsafeCoerce )
+import Unsafe.Coerce ( unsafeCoerce )
 
 newtype Natural = Natural Integer
   deriving Eq
+
+-- Begin yuk.
+
+{-# INLINE [1] coerce #-}
+{-# RULES "coerce-id" forall (x :: a) . coerce x = x #-}
+
+coerce :: a -> b
+coerce = unsafeCoerce
+
+-- The function f will always really be of type b -> Integer,
+-- but it's tricky to get Agda to tell us that.
+
+convert :: (a -> Integer) -> b -> Natural
+convert f x = Natural (f (coerce x))
+
+-- End yuk.
 
 nfoldl :: (a -> a) -> a -> Natural -> a
 nfoldl f x (Natural (n+1)) = nfoldl f (f x) (Natural n)

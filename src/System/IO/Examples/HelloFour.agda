@@ -1,6 +1,7 @@
 open import System.IO using ( _>>_ ; putStr ; commit )
-open import Data.Natural using ( # ; _+_ ; show )
+open import Data.Natural using ( show )
+open import System.IO.Examples.Four using ( four )
 
 module System.IO.Examples.HelloFour where
 
-main = putStr "Hello, " >> putStr (show (# 2 + # 2)) >> putStr ".\n" >> commit
+main = putStr "Hello, " >> putStr (show four) >> putStr ".\n" >> commit

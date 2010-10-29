@@ -1,4 +1,4 @@
-open import Data.Nat using ( ℕ )
+open import Data.Nat using ( ℕ ; fold ) renaming ( zero to zero' ; suc to suc' )
 open import Data.String using ( String )
 
 module Data.Natural.Primitive where
@@ -23,3 +23,11 @@ postulate
 {-# COMPILED foldl (\ _ -> Data.Natural.AgdaFFI.nfoldl) #-}
 {-# COMPILED foldl' (\ _ -> Data.Natural.AgdaFFI.nfoldl') #-}
 {-# COMPILED foldr (\ _ -> Data.Natural.AgdaFFI.nfoldr) #-}
+
+private
+  postulate
+    # : ∀ {A} → A → Natural
+{-# COMPILED # (\ _ -> Data.Natural.AgdaFFI.convert MAlonzo.Data.Nat.mazNatToInteger) #-}
+
+fromℕ : ℕ → Natural
+fromℕ = #
