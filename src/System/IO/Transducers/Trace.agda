@@ -3,7 +3,7 @@ open import System.IO.Transducers.Session using ( Weighted ; Session ; [] ; _∷
 
 module System.IO.Transducers.Trace where
 
-infixr 4 _≤_ _≥_
+infixr 4 _≤_ _≥_ _⊑_
 infixr 5 _∷_ _++_ _++'_
 
 -- The semantics of a session is its set of traces.
@@ -28,6 +28,12 @@ data _≤_ : Session → Session → Set₁ where
 data Trace : Session → Set₁ where
   [] : ∀ {S} → (Trace S)
   _∷_ : ∀ {A Ss} → {V : Weighted A} → (a : A) → (as : Trace (♭ Ss a)) → (Trace (V ∷ Ss))
+
+-- Prefix order on incomplete traces
+
+data _⊑_ : ∀ {S} → (Trace S) → (Trace S) → Set₁ where
+  [] : ∀ {S} {as : Trace S} → ([] ⊑ as)
+  _∷_ : ∀ {A W Ss} (a : A) {as bs} → (_⊑_ {♭ Ss a} as bs) → (_⊑_ {W ∷ Ss} (a ∷ as) (a ∷ bs))
 
 -- Traces form categories, where composition is concatenation.
 

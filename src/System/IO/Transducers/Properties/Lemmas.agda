@@ -1,6 +1,6 @@
 {-# OPTIONS --universe-polymorphism #-}
 
-open import System.IO.Transducers using ( _⇒_ ; inp ; out ; done ; _⟫_ ; out*' ; I⟦_⟧ ; _≃_ )
+open import System.IO.Transducers using ( _⇒_ ; inp ; out ; done ; _⟫_ ; out*' ; ⟦_⟧ ; _≃_ )
 open import System.IO.Transducers.Trace using ( Trace ; _≤_ ; [] ; _∷_ ) 
 open import Relation.Binary.PropositionalEquality using ( _≡_ ; refl ; cong )
 
@@ -18,6 +18,6 @@ revApp (a ∷ as) bs = revApp as (a ∷ bs)
 
 out*'-semantics : ∀ {S T U} → 
   (cs : T ≤ U) →  (Q : S ⇒ T) →
-    ∀ as → I⟦ out*' cs Q ⟧ as ≡ revApp cs (I⟦ Q ⟧ as)
+    ∀ as → ⟦ out*' cs Q ⟧ as ≡ revApp cs (⟦ Q ⟧ as)
 out*'-semantics [] Q as       = refl
 out*'-semantics (c ∷ cs) Q as = out*'-semantics cs (out c Q) as

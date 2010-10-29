@@ -6,7 +6,7 @@ open import Data.Strict using ( Strict ; ! )
 open import Data.Sum using ( _⊎_ ; inj₁ ; inj₂ )
 open import Data.Unit using ( ⊤ ; tt )
 open import System.IO.Transducers.Session using ( Weighted ; Session ; [] ; _∷_ ; Σ ; _/_ ; ⟨_⟩ ; _&_ ; lift ; opt ; ¿ ; choice ; _⊕_ ; _&¡_ ; many ; ¡ )
-open import System.IO.Transducers.Trace using ( _≥_ ; _≤_ ; Trace ; [] ; _∷_ ; _▷_ )
+open import System.IO.Transducers.Trace using ( _≥_ ; _≤_ ; Trace ; _⊑_ ; [] ; _∷_ ; _▷_ )
 open import Relation.Binary.PropositionalEquality using ( _≡_ )
 
 module System.IO.Transducers where
@@ -22,7 +22,7 @@ module System.IO.Transducers where
 -- are essentially I/O automata, or strategies in a two-player 
 -- game without the move alternation restriction.
 
-infixr 4 _⇒_ Inp_⇒_
+infixr 4 _⇒_ Inp_⇒_ _≃_ _≲_ 
 infixr 6 _⟫_
 
 data _⇒_ : Session → Session → Set₁ where
@@ -48,28 +48,23 @@ out*' : ∀ {S T T'} → (T' ≤ T) → (S ⇒ T') → (S ⇒ T)
 out*' []       P = P
 out*' (b ∷ bs) P = out*' bs (out b P)
 
--- Operational semantics.
+-- Semantics as a function from incomplete traces to incomplete traces
 
-S⟦_⟧ : ∀ {S T} → (S ⇒ T) → ∀ {S'} → (S ≥ S') → (∃ λ T' → (S' ⇒ T') × (T ≥ T'))
-S⟦ inp F   ⟧ []                  = (_ , inp F , [])
-S⟦ inp F   ⟧ (a ∷ as)            = S⟦ ♭ F a ⟧ as
-S⟦ out b P ⟧ as with S⟦ P ⟧ as
-S⟦ out b P ⟧ as | (T' , P' , bs) = (T' , P' , b ▷ bs)
-S⟦ done    ⟧ as                  = (_ , done , as)
+⟦_⟧ : ∀ {S T} → (S ⇒ T) → (Trace S) → (Trace T)
+⟦ inp F   ⟧ []             = []
+⟦ inp F   ⟧ (a ∷ as)       = ⟦ ♭ F a ⟧ as
+⟦ out b P ⟧ as             = b ∷ ⟦ P ⟧ as
+⟦ done    ⟧ as             = as
 
--- Semantics on incomplete traces
+-- Extensional equivalence on trace functions
 
-I⟦_⟧ : ∀ {S T} → (S ⇒ T) → (Trace S) → (Trace T)
-I⟦ inp F   ⟧ []             = []
-I⟦ inp F   ⟧ (a ∷ as)       = I⟦ ♭ F a ⟧ as
-I⟦ out b P ⟧ as             = b ∷ I⟦ P ⟧ as
-I⟦ done    ⟧ as             = as
+_≃_ : ∀ {S T} → (f g : Trace S → Trace T) → Set₁
+f ≃ g = ∀ as → f as ≡ g as
 
--- Transducer equivalence is defined extensionally, over
--- possibly incomplete traces.
+-- Improvement order on trace functions
 
-_≃_ : ∀ {S T} → (S ⇒ T) → (S ⇒ T) → Set₁
-P ≃ Q = ∀ as → I⟦ P ⟧ as ≡ I⟦ Q ⟧ as
+_≲_ : ∀ {S T} → (f g : Trace S → Trace T) → Set₁
+f ≲ g = ∀ as → f as ⊑ g as
 
 -- Transducers map completed traces to completed traces.
 
