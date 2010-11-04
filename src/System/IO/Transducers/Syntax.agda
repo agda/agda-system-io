@@ -1,12 +1,11 @@
 open import Coinduction using ( ∞ ; ♭ ; ♯_ )
 open import Data.Empty using ( ⊥ )
 open import Data.Bool using ( Bool ; true ; false ; if_then_else_ )
-open import Data.Natural using ( Natural ; _+_ ; # )
 open import Data.Product using ( ∃ ; _×_ ; _,_ ; ,_ )
 open import Data.Strict using ( Strict ; ! )
 open import Data.Sum using ( _⊎_ ; inj₁ ; inj₂ )
 open import Data.Unit using ( ⊤ ; tt )
-open import System.IO.Transducers.Session using ( Weighted ; Session ; I ; Σ ; Γ ; ⟨_⟩ ; _&_ ; ¿ ; _⊕_ ; _&¡_ ; many ; ¡ )
+open import System.IO.Transducers.Session using ( Weighted ; Session ; I ; Σ ; Γ ; ⟨_⟩ ; _&_ ; ¿ ; _+_ ; _⊕_ ; _&*_ ; * )
 open import System.IO.Transducers.Trace using ( _≥_ ; _≤_ ; Trace ; _⊑_ ; [] ; _∷_ )
 open import Relation.Binary.PropositionalEquality using ( _≡_ )
 
@@ -23,7 +22,7 @@ module System.IO.Transducers.Syntax where
 -- are essentially I/O automata, or strategies in a two-player 
 -- game without the move alternation restriction.
 
-infixr 4 _⇒_is_ _≃_ _≲_ 
+infixr 4 _⇒_is_ _⇒_ _≃_ _≲_ 
 infixr 6 _⟫_
 
 -- Transducers are parameterized on how strict they are:
@@ -36,6 +35,11 @@ data _⇒_is_ : Session → Session → Strictness → Set₁ where
   inp : ∀ {A F T V s} → ∞ ((a : A) → (♭ F a ⇒ T is lazy)) → (Σ V F ⇒ T is s)
   out : ∀ {S B G W} → (b : B) → (S ⇒ ♭ G b is lazy) → (S ⇒ Σ W G is lazy)
   done : ∀ {S s} → (S ⇒ S is s)
+
+-- Default strictness is lazy
+
+_⇒_ : Session → Session → Set₁
+S ⇒ T = S ⇒ T is lazy
 
 -- Inclusion of strict transducers to lazy transducers
 
@@ -160,98 +164,46 @@ copy = done ⟨&⟩ done
 swap : ∀ {S T s} → ((S & T) ⇒ (T & S) is s)
 swap {S} = π₂ {S} ⟨&⟩ π₁ {S}
 
--- Coproduct structure.
+-- Lazy coproduct structure.
 
-κ₁ : ∀ {S T s} → (S ⇒ S ⊕ T is s)
+ι₁ : ∀ {S T} → (S ⇒ S + T is lazy)
+ι₁ = out true done
+
+ι₂ : ∀ {S T} → (T ⇒ S + T is lazy)
+ι₂ = out false done
+
+choice : ∀ {S T U} → (S ⇒ U is lazy) → (T ⇒ U is lazy) → 
+  ∀ b → ((if b then S else T) ⇒ U is lazy)
+choice P Q true  = P
+choice P Q false = Q
+
+_⟨+⟩_ : ∀ {S T U s} → (S ⇒ U is lazy) → (T ⇒ U is lazy) → ((S + T) ⇒ U is s)
+P ⟨+⟩ Q = inp (♯ choice P Q)
+
+-- Strict coproduct structure.
+
+κ₁ : ∀ {S T} → (S ⇒ S ⊕ T is strict)
 κ₁ {I}     {T}     = done
 κ₁ {Σ V F} {I}     = discard
 κ₁ {Σ V F} {Σ W G} = inp (♯ λ a → out true (out a done))
 
-κ₂ : ∀ {S T s} → (T ⇒ S ⊕ T is s)
+κ₂ : ∀ {S T} → (T ⇒ S ⊕ T is strict)
 κ₂ {I}     {T}     = discard
 κ₂ {Σ V F} {I}     = done
 κ₂ {Σ V F} {Σ W G} = inp (♯ λ b → out false (out b done))
 
-choice : ∀ {S T U s} → (S ⇒ U is s) → (T ⇒ U is s) → 
-  ∀ b → ((if b then S else T) ⇒ U is s)
-choice P Q true  = P
-choice P Q false = Q
-
-_⟨⊕⟩_ : ∀ {S T U s} → (S ⇒ U is s) → (T ⇒ U is s) → ((S ⊕ T) ⇒ U is s)
+_⟨⊕⟩_ : ∀ {S T U} → (S ⇒ U is strict) → (T ⇒ U is strict) → ((S ⊕ T) ⇒ U is strict)
 _⟨⊕⟩_ {I}     {T}     P Q = P
 _⟨⊕⟩_ {Σ V F} {I}     P Q = Q
-_⟨⊕⟩_ {Σ V F} {Σ W G} P Q = inp (♯ choice (ι P) (ι Q))
+_⟨⊕⟩_ {Σ V F} {Σ W G} P Q = (ι P) ⟨+⟩ (ι Q)
 
 -- Options.
 
-some : ∀ {S s} → (S ⇒ ¿ S is s)
-some {I}     = done
-some {Σ V F} = inp (♯ λ a → out true (out a done))
+some : ∀ {S} → (S ⇒ ¿ S is lazy)
+some = ι₁
 
 none : ∀ {S} → (I ⇒ ¿ S is lazy)
-none {I}     = done
-none {Σ V F} = out false done
+none = ι₂
 
-_⟨¿⟩_ : ∀ {S T s} → (S ⇒ T is s) → (I ⇒ T is lazy) → (¿ S ⇒ T is s)
-_⟨¿⟩_ {I}     P Q = P
-_⟨¿⟩_ {Σ V F} P Q = inp (♯ choice (ι P) Q)
-
--- -- Weight of a trace
-
--- weight' : ∀ {S} → (Strict Natural) → S ⇛ ⟨ Natural ⟩
--- weight' {I}     (! n) = out n done
--- weight' {Σ W F} (! n) = inp (♯ λ a → weight' (! (n + W a)))
-
--- weight : ∀ {S} → S ⇛ ⟨ Natural ⟩
--- weight = weight' (! (# 0))
-
--- -- Length of a list
-
--- mutual
-
---   length'' : ∀ {T S} → (Strict Natural) → T &¡ S ⇛ ⟨ Natural ⟩
---   length'' {I}     {S} (! n) = inp (♯ length' {S} (! n))
---   length'' {Σ V G} {S} (! n) = inp (♯ λ b → length'' {♭ G b} {S} (! n))
-
---   length' : ∀ {S} → (Strict Natural) → S ⇛ ⟨ Natural ⟩
---   length' {S} (! n) true  = length'' {S} {S} (! (n + # 1))
---   length' {S} (! n) false = out n done
-
--- length : ∀ {S} → (¡ S) ⇛ ⟨ Natural ⟩
--- length {S} = inp (♯ length' {S} (! (# 0)))
-
--- -- Flatten a list of lists
-
--- mutual
-
---   concat''' : ∀ {T S} → (T &¡ S) &¡ ¡ S ⇛ T &¡ S
---   concat''' {I}     {S} = inp (♯ concat'' {S})
---   concat''' {Σ W G} {S} = inp (♯ λ a → out a (concat''' {♭ G a} {S}))
-
---   concat'' : ∀ {S} → ¡ S &¡ ¡ S ⇛ ¡ S
---   concat'' {S} true  = out true (concat''' {S} {S})
---   concat'' {S} false = inp (♯ concat' {S})
-
---   concat' : ∀ {S} → (¡ (¡ S)) ⇛ (¡ S)
---   concat' {S} true  = inp (♯ concat'' {S})
---   concat' {S} false = out false done
-
--- concat : ∀ {S}  → (¡ (¡ S)) ⇛ (¡ S)
--- concat {S} = inp (♯ concat' {S})
-
--- -- Some inclusions, which coerce traces from one session to another.
-
--- -- TODO: Add more inclusions.
--- -- TODO: Prove that these are monomorphisms.
--- -- TODO: It would be nice if inclusions like this could be handled by subtyping.
-
--- S⊆S&¡T : ∀ {S T} → (S ⇛ S &¡ T)
--- S⊆S&¡T {I}     = out false done
--- S⊆S&¡T {Σ V F} = inp (♯ λ a → out a S⊆S&¡T)
-
--- optS⊆manyS : ∀ {S} → (b : Bool) → ((if b then S else I) ⇛ many S b)
--- optS⊆manyS true  = S⊆S&¡T
--- optS⊆manyS false = done
-
--- ¿S⊆¡S : {S : Session} → (¿ S ⇛ ¡ S)
--- ¿S⊆¡S {S} = inp (♯ λ a → out a (optS⊆manyS {S} a))
+_⟨¿⟩_ : ∀ {S T s} → (S ⇒ T is lazy) → (I ⇒ T is lazy) → (¿ S ⇒ T is s)
+P ⟨¿⟩ Q = P ⟨+⟩ Q

@@ -1,10 +1,11 @@
 open import Coinduction using ( ∞ ; ♭ ; ♯_ )
-open import Data.Maybe using ( Maybe ; just ; nothing )
+open import Data.Bool using ( Bool ; true ; false )
 open import Data.Nat using ( ℕ ; zero ; suc )
 open import Data.Natural using ( Natural ; # ; % ; _+_ )
 open import Data.Strict using ( Strict ; ! )
-open import System.IO.Transducers using ( _⇒_ ; inp ; out ; done ; out*' ; _[&]_ ; _⟫_ ; ¿S⊆¡S )
-open import System.IO.Transducers.Session using ( [] ; _∷_ ; ⟨_⟩ ; _&_ ; lift ; ¿ ; ¡ ; _&¡_ ; Σ ; Δ ; _/_ ; ⟨Maybe⟩ )
+open import System.IO.Transducers.List using ( S⊆S&*T )
+open import System.IO.Transducers.Syntax using ( _⇒_ ; inp ; out ; done ; out* ; _[&]_ ; _⟫_ )
+open import System.IO.Transducers.Session using ( I ; Σ ; ⟨_⟩ ; _&_ ; ¿ ; * ; _&*_ )
 open import System.IO.Transducers.Trace using ( [] ; _∷_ ; _≤_ )
 open import Relation.Binary.PropositionalEquality using ( _≡_ ; refl )
 
@@ -19,7 +20,7 @@ module System.IO.Transducers.Stateful where
 -- and S is Bytes, since this collapses to Bytes ⇒ U & Bytes,
 -- that is, the type for a parser over a byte stream.
  
--- The type Bytes ⇒ U & Bytes (or more generally ¡ ⟨ B ⟩ ⇒ U & ¡ ⟨ B ⟩)
+-- The type Bytes ⇒ U & Bytes (or more generally * ⟨ B ⟩ ⇒ U & * ⟨ B ⟩)
 -- is the type of an iteratee returning U.
 
 -- Lookahead.
@@ -31,21 +32,21 @@ module System.IO.Transducers.Stateful where
 
 lookahead¿' : ∀ {T S S'} → (S' ≤ S) → (S' ⇒ ¿ T & S) → (S' ⇒ ¿ T & S)
 lookahead¿' {T} as (inp F) = inp (♯ λ a → lookahead¿' {T} (a ∷ as) (♭ F a))
-lookahead¿' {T} as (out nothing P) = out nothing (out*' as done)
-lookahead¿' {T} as (out (just x) P) = out (just x) P
+lookahead¿' {T} as (out true P) = out true P
+lookahead¿' {T} as (out false P) = out false (out* as done)
 lookahead¿' {T} as (done) = inp (♯ λ a → lookahead¿' {T} (a ∷ as) (out a done))
 
 lookahead¿ : ∀ {T S} → (S ⇒ ¿ T & S) → (S ⇒ ¿ T & S)
 lookahead¿ {T} = lookahead¿' {T} []
 
-lookahead¡' : ∀ {T S S'} → (S' ≤ S) → (S' ⇒ ¡ T & S) → (S' ⇒ ¡ T & S)
-lookahead¡' {T} as (inp F) = inp (♯ λ a → lookahead¡' {T} (a ∷ as) (♭ F a))
-lookahead¡' {T} as (out nothing P) = out nothing (out*' as done)
-lookahead¡' {T} as (out (just x) P) = out (just x) P
-lookahead¡' {T} as (done) = inp (♯ λ a → lookahead¡' {T} (a ∷ as) (out a done))
+lookahead*' : ∀ {T S S'} → (S' ≤ S) → (S' ⇒ * T & S) → (S' ⇒ * T & S)
+lookahead*' {T} as (inp F) = inp (♯ λ a → lookahead*' {T} (a ∷ as) (♭ F a))
+lookahead*' {T} as (out true P) = out true P
+lookahead*' {T} as (out false P) = out false (out* as done)
+lookahead*' {T} as (done) = inp (♯ λ a → lookahead*' {T} (a ∷ as) (out a done))
 
-lookahead¡ : ∀ {T S} → (S ⇒ ¡ T & S) → (S ⇒ ¡ T & S)
-lookahead¡ {T} = lookahead¡' {T} []
+lookahead* : ∀ {T S} → (S ⇒ * T & S) → (S ⇒ * T & S)
+lookahead* {T} = lookahead*' {T} []
 
 -- Iteration structure.
 
@@ -63,7 +64,7 @@ lookahead¡ {T} = lookahead¡' {T} []
 -- we can define:
 
 --  loop (lookahead (inp (♯ λ n → out (nat? n) done))) : 
---    ¡ ⟨ ℤ ⟩ ⇒ ¡ ⟨ ℕ ⟩ & ¡ ⟨ ℤ ⟩
+--    * ⟨ ℤ ⟩ ⇒ * ⟨ ℕ ⟩ & * ⟨ ℤ ⟩
 
 -- This transducer will return the longest non-negative prefix
 -- of its input, for example on input just 2 ∷ just 5 ∷ just -3 ∷ ...
@@ -104,34 +105,34 @@ mutual
  
   -- loop''' 0 P Q R is equivant to P ⟫ Q ⟫ (done ⟨&⟩ loop R)
 
-  loop'''' : ∀ {T T' R S S'} → (Strict Natural) → (R ⇒ S) → (S ⇒ T' & S') → (S' ⇒ ¿ T & S') → (R ⇒ (T' &¡ T) & S')
+  loop'''' : ∀ {T T' U S S'} → (Strict Natural) → (U ⇒ S) → (S ⇒ T' & S') → (S' ⇒ ¿ T & S') → (U ⇒ (T' &* T) & S')
   loop'''' {T} {T'} (! n) P Q R = loop''' {T} {T'} (% n) n P Q R
 
-  loop''' : ∀ {T T' R S S'} → ℕ → Natural → (R ⇒ S) → (S ⇒ T' & S') → (S' ⇒ ¿ T & S') → (R ⇒ (T' &¡ T) & S')
-  loop''' {T} {[]}              m n P           Q         R = loop' {T} m n (P ⟫ Q) R R
-  loop''' {T} {V ∷ Ts} {W ∷ Rs} m n (inp F)     (inp G)   R = inp (♯ λ a → loop'''' {T} {V ∷ Ts} (! (n + W a)) (♭ F a) (inp G) R)
-  loop''' {T} {V ∷ Ts}          m n (out a P)   (inp G)   R = loop''' {T} {V ∷ Ts} m n P (♭ G a) R
-  loop''' {T} {V ∷ Ts} {W ∷ Rs} m n done        (inp F)   R = inp (♯ λ a → loop'''' {T} {V ∷ Ts} (! (n + W a)) done (♭ F a) R)
-  loop''' {T} {V ∷ Ts}          m n P           (out b Q) R = out b (loop''' {T} {♭ Ts b} m n P Q R)
-  loop''' {T} {V ∷ Ts} {W ∷ Rs} m n (inp F)     done      R = inp (♯ λ a → loop'''' {T} {V ∷ Ts} (! (n + W a)) (♭ F a) done R)
-  loop''' {T} {V ∷ Ts}          m n (out a P)   done      R = out a (loop''' {T} {♭ Ts a} m n P done R)
-  loop''' {T} {V ∷ Ts}          m n done        done      R = inp (♯ λ a → out a (loop'''' {T} {♭ Ts a} (! (n + (V a))) done done R))
+  loop''' : ∀ {T T' U S S'} → ℕ → Natural → (U ⇒ S) → (S ⇒ T' & S') → (S' ⇒ ¿ T & S') → (U ⇒ (T' &* T) & S')
+  loop''' {T} {I}             m n P           Q         R = loop' {T} m n (P ⟫ Q) R R
+  loop''' {T} {Σ V F} {Σ W G} m n (inp P)     (inp Q)   R = inp (♯ λ a → loop'''' {T} {Σ V F} (! (n + W a)) (♭ P a) (inp Q) R)
+  loop''' {T} {Σ V F}         m n (out a P)   (inp Q)   R = loop''' {T} {Σ V F} m n P (♭ Q a) R
+  loop''' {T} {Σ V F} {Σ W G} m n done        (inp P)   R = inp (♯ λ a → loop'''' {T} {Σ V F} (! (n + W a)) done (♭ P a) R)
+  loop''' {T} {Σ V F}         m n P           (out b Q) R = out b (loop''' {T} {♭ F b} m n P Q R)
+  loop''' {T} {Σ V F} {Σ W G} m n (inp P)     done      R = inp (♯ λ a → loop'''' {T} {Σ V F} (! (n + W a)) (♭ P a) done R)
+  loop''' {T} {Σ V F}         m n (out a P)   done      R = out a (loop''' {T} {♭ F a} m n P done R)
+  loop''' {T} {Σ V F}         m n done        done      R = inp (♯ λ a → out a (loop'''' {T} {♭ F a} (! (n + (V a))) done done R))
 
-  -- loop' 0 P Q R is equivalent to P ⟫ Q ⟫ loop R [¿] done
+  -- loop' 0 P Q R is equivalent to P ⟫ Q ⟫ loop R ⟨¿⟩ done
 
-  loop'' : ∀ {T R S S'} → (Strict Natural) → (R ⇒ S) → (S ⇒ ¿ T & S') → (S' ⇒ ¿ T & S') → (R ⇒ ¡ T & S')
+  loop'' : ∀ {T U S S'} → (Strict Natural) → (U ⇒ S) → (S ⇒ ¿ T & S') → (S' ⇒ ¿ T & S') → (U ⇒ * T & S')
   loop'' {T} (! n) P Q R = loop' {T} (% n) n P Q R
 
-  loop' : ∀ {T R S S'} → ℕ → Natural → (R ⇒ S) → (S ⇒ ¿ T & S') → (S' ⇒ ¿ T & S') → (R ⇒ ¡ T & S')
-  loop' {T} {W ∷ Rs} m       n (inp F)   (inp G)          R = inp (♯ λ a → loop'' {T} (! (n + W a)) (♭ F a) (inp G) R)
-  loop' {T}          m       n (out a P) (inp G)          R = loop' {T} m n P (♭ G a) R
-  loop' {T} {W ∷ Rs} m       n done      (inp F)          R = inp (♯ λ a → loop'' {T} (! (n + W a)) done (♭ F a) R)
-  loop' {T}          zero    n P         (out b Q)        R = P ⟫ out b Q ⟫ (¿S⊆¡S {T} [&] done)
-  loop' {T}          (suc m) n P         (out (just b) Q) R = out (just b) (loop''' {T} {lift T / b} m n P Q R)
-  loop' {T}          (suc m) n P         (out nothing Q)  R  = P ⟫ out nothing Q
-  loop' {T} {W ∷ Rs} m       n (inp F)   done             R = inp (♯ λ a → loop'' {T} (! (n + W a)) (♭ F a) done R)
-  loop' {T}          m       n (out a P) done             R = loop' {T} m n P (out a done) R
-  loop' {T}          m       n done      done             R = inp (♯ λ a → loop'' {T} (! (n + ⟨Maybe⟩ (Δ (lift T)) a)) done (out a done) R)
+  loop' : ∀ {T U S S'} → ℕ → Natural → (U ⇒ S) → (S ⇒ ¿ T & S') → (S' ⇒ ¿ T & S') → (U ⇒ * T & S')
+  loop' {T} {Σ V F} m       n (inp P)   (inp Q)       R = inp (♯ λ a → loop'' {T} (! (n + V a)) (♭ P a) (inp Q) R)
+  loop' {T}         m       n (out a P) (inp Q)       R = loop' {T} m n P (♭ Q a) R
+  loop' {T} {Σ V F} m       n done      (inp Q)       R = inp (♯ λ a → loop'' {T} (! (n + V a)) done (♭ Q a) R)
+  loop' {T}         zero    n P         (out true Q)  R = out true (P ⟫ Q ⟫ S⊆S&*T {T} [&] done)
+  loop' {T}         (suc m) n P         (out true Q)  R = out true (loop''' {T} {T} m n P Q R)
+  loop' {T}         m       n P         (out false Q) R = out false (P ⟫ Q)
+  loop' {T} {Σ V F} m       n (inp P)   done          R = inp (♯ λ a → loop'' {T} (! (n + V a)) (♭ P a) done R)
+  loop' {T}         m       n (out a P) done          R = loop' {T} m n P (out a done) R
+  loop' {T}         m       n done      done          R = inp (♯ λ a → loop'' {T} (! (n + # 1)) done (out a done) R)
 
-loop : ∀ {T S} → (S ⇒ ¿ T & S) → (S ⇒ ¡ T & S)
+loop : ∀ {T S} → (S ⇒ ¿ T & S) → (S ⇒ * T & S)
 loop {T} P = loop' {T} zero (# 0) done P P

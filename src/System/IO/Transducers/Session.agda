@@ -33,7 +33,7 @@ module System.IO.Transducers.Session where
 -- acceptors are leaves, transitions correspond to children.
 
 infixr 6 _⊕_
-infixr 7 _&_ _&¡_
+infixr 7 _&_ _&*_
 
 -- Weighting for a set
 
@@ -79,44 +79,65 @@ _&_ : Session → Session → Session
 I       & T = T
 (Σ W F) & T = Σ W (♯ λ a → ♭ F a & T)
 
--- Choice
+-- Lazy choice
+
+_+_ : Session → Session → Session
+S + T = Σ δ (♯ λ b → if b then S else T)
+
+-- Strict choice
 
 _⊕_ : Session → Session → Session
 I ⊕ T = I
 S ⊕ I = I
-S ⊕ T = Σ δ (♯ λ b → if b then S else T)
+S ⊕ T = S + T
 
--- Option
+-- Lazy option
 
 ¿ : Session → Session
-¿ I = I
-¿ S = Σ δ (♯ λ b → if b then S else I)
+¿ S = S + I
 
--- Kleene star
+-- Lazy Kleene star
 
--- It would be nice if I could just define ¡ S = ¿ (S & ¡ S),
+-- It would be nice if I could just define * S = ¿ (S & * S),
 -- but that doesn't pass the termination checker, so I have
 -- to expand out the definition.
 
+hd : Session → Set
+hd I           = Bool
+hd (Σ {A} W F) = A
+
+wt : ∀ S → (Weighted (hd S))
+wt I       = δ
+wt (Σ W F) = W
+
 mutual
 
-  many : Session → Bool → Session
-  many S true = S &¡ S
-  many S false = I
-  
-  _&¡_ : Session → Session → Session
-  I       &¡ T = Σ δ (♯ many T)
-  (Σ W F) &¡ T = Σ W (♯ λ a → ♭ F a &¡ T)
+  tl : ∀ S T → (hd S) → Session
+  tl I       T true  = T &* T
+  tl I       T false = I
+  tl (Σ W F) T a     = (♭ F a) &* T
 
-¡ : Session → Session
-¡ S = I &¡ S
+  _&*_ : Session → Session → Session
+  S &* T = Σ (wt S) (♯ tl S T)
+
+* : Session → Session
+* S = I &* S
+
++ : Session → Session
++ S = S &* S
 
 -- Bytes
 
+Bytes' : Session
+Bytes' = + ⟨ ByteString strict w/ length ⟩
+
 Bytes : Session
-Bytes = ¡ ⟨ ByteString strict w/ length ⟩
+Bytes = * ⟨ ByteString strict w/ length ⟩
 
 -- TODO: weight strings by their length?
 
+Strings' : Session
+Strings' = + ⟨ String ⟩
+
 Strings : Session
-Strings = ¡ ⟨ String ⟩
+Strings = * ⟨ String ⟩

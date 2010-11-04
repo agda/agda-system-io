@@ -1,46 +1,51 @@
 open import Coinduction using ( ♯_ )
 open import Data.Bool using ( Bool ; true ; false ; not )
 open import Data.ByteString using ( null ) renaming ( span to #span )
-open import Data.Maybe using ( Maybe ; just ; nothing )
 open import Data.Natural using ( Natural )
 open import Data.Product using ( _×_ ; _,_ )
 open import Data.Word using ( Byte )
-open import System.IO.Transducers using ( _⇒_ ; Inp_⇒_ ; inp ; out ; done ; _⟫_ ; π₁ ; π₂ ; _[&]_ ; weight )
+open import System.IO.Transducers.Syntax using ( _⇒_ ; inp ; out ; done ; _⟫_ ; π₁ ; π₂ ; _[&]_ )
+open import System.IO.Transducers.Weight using ( weight )
 open import System.IO.Transducers.Stateful using ( loop )
-open import System.IO.Transducers.Session using ( ⟨_⟩ ; _&_ ; ¿ ; ¡ ; Bytes )
+open import System.IO.Transducers.Session using ( ⟨_⟩ ; _&_ ; ¿ ; * ; _&*_ )
+open import System.IO.Transducers.Function using ( _⇛_ )
 
 module System.IO.Transducers.Bytes where
 
-open import System.IO.Transducers.Session public using ( Bytes )
+open System.IO.Transducers.Session public using ( Bytes ; Bytes' )
 
-span' : (Byte → Bool) → Inp Bytes ⇒ Bytes & Bytes
-span' φ (just x) with #span φ x
-span' φ (just x) | (x₁ , x₂) with null x₁ | null x₂ 
-span' φ (just x) | (x₁ , x₂) | true  | true  = inp (♯ span' φ)
-span' φ (just x) | (x₁ , x₂) | true  | false = out nothing (out (just x₂) done)
-span' φ (just x) | (x₁ , x₂) | false | true  = out (just x₁) (inp (♯ span' φ))
-span' φ (just x) | (x₁ , x₂) | false | false = out (just x₁) (out nothing (out (just x₂) done))
-span' φ nothing  = out nothing (out nothing done)
+mutual
 
-span : (Byte → Bool) → Bytes ⇒ Bytes & Bytes
-span φ = inp (♯ span' φ)
+  span+ : (Byte → Bool) → Bytes' ⇛ (Bytes & Bytes)
+  span+ φ x with #span φ x
+  span+ φ x | (x₁ , x₂) with null x₁ | null x₂ 
+  span+ φ x | (x₁ , x₂) | true  | true  = inp (♯ span φ)
+  span+ φ x | (x₁ , x₂) | true  | false = out false (out true (out x₂ done))
+  span+ φ x | (x₁ , x₂) | false | true  = out true (out x₁ (inp (♯ span φ)))
+  span+ φ x | (x₁ , x₂) | false | false = out true (out x₁ (out false (out true (out x₂ done))))
+  
+  span : (Byte → Bool) → Bytes ⇛ (Bytes & Bytes)
+  span φ false = out false (out false done)
+  span φ true  = inp (♯ span+ φ)
 
-break : (Byte → Bool) → Bytes ⇒ Bytes & Bytes
+break : (Byte → Bool) → Bytes ⇛ (Bytes & Bytes)
 break φ = span (λ x → not (φ x))
 
-nonempty' : Inp Bytes ⇒ ¿ Bytes
-nonempty' (just x) with null x
-nonempty' (just x) | true  = inp (♯ nonempty')
-nonempty' (just x) | false = out (just (just x)) done
-nonempty' nothing  = out nothing done
+mutual
 
-nonempty : Bytes ⇒ ¿ Bytes
-nonempty = inp (♯ nonempty')
+  nonempty+ : Bytes' ⇛ ¿ Bytes
+  nonempty+ x with null x
+  nonempty+ x | true  = inp (♯ nonempty)
+  nonempty+ x | false = out true (out true (out x done))
 
-split? : (Byte → Bool) → Bytes ⇒ ¿ Bytes & Bytes
-split? φ = span φ ⟫ π₂ {Bytes} ⟫ break φ ⟫ nonempty [&] done
+  nonempty : Bytes ⇛ ¿ Bytes
+  nonempty true  = inp (♯ nonempty+)
+  nonempty false = out false done
 
-split : (Byte → Bool) → Bytes ⇒ ¡ Bytes
+split? : (Byte → Bool) → Bytes ⇒ (¿ Bytes & Bytes)
+split? φ = inp (♯ span φ) ⟫ π₂ {Bytes} ⟫ inp (♯ break φ) ⟫ (inp (♯ nonempty) [&] done)
+
+split : (Byte → Bool) → Bytes ⇒ * Bytes
 split φ = loop {Bytes} (split? φ) ⟫ π₁
 
 bytes : Bytes ⇒ ⟨ Natural ⟩
