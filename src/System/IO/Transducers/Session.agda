@@ -1,4 +1,5 @@
 open import Coinduction using ( ∞ ; ♯_ ; ♭ )
+open import Data.Bool using ( Bool ; true ; false ; if_then_else_ )
 open import Data.Empty using ( ⊥ )
 open import Data.Maybe using ( Maybe ; just ; nothing )
 open import Data.Sum using ( _⊎_ ; inj₁ ; inj₂ )
@@ -31,7 +32,6 @@ module System.IO.Transducers.Session where
 -- Finally, they are a lot like automata: states are sessions,
 -- acceptors are leaves, transitions correspond to children.
 
-infixl 5 _/_
 infixr 6 _⊕_
 infixr 7 _&_ _&¡_
 
@@ -40,120 +40,76 @@ infixr 7 _&_ _&¡_
 Weighted : Set → Set
 Weighted A = A → Natural
 
+-- Discrete weighting function
+
+δ : ∀ {A} → (Weighted A)
+δ a = # 1
+
 -- Sessions are trees of weighted sets
 
 data Session : Set₁ where
-  [] : Session
-  _∷_ : {A : Set} → (W : Weighted A) → (Ss : ∞ (A → Session)) → Session
-
--- Domain of a weighting function
-
-dom : ∀ {A} → (Weighted A) → Set
-dom {A} W = A
-
--- Discrete weighting function
-
-discrete : ∀ {A} → (Weighted A)
-discrete a = # 1
-
--- Optional weighting function
-
-⟨Maybe⟩ : ∀ {A} → (Weighted A) → (Weighted (Maybe A))
-⟨Maybe⟩ W (just a) = W a
-⟨Maybe⟩ W nothing  = # 1
-
--- Choice weighting function
-
-_⟨⊎⟩_ : ∀ {A B} → (Weighted A) → (Weighted B) → (Weighted (A ⊎ B))
-(V ⟨⊎⟩ W) (inj₁ a) = V a
-(V ⟨⊎⟩ W) (inj₂ b) = W b
+  I : Session
+  Σ : {A : Set} → (W : Weighted A) → (F : ∞ (A → Session)) → Session
 
 -- Inital alphabet
 
-Σ : Session → Set
-Σ []       = ⊥
-Σ (A ∷ Ss) = dom A
+Γ : Session → Set
+Γ I           = ⊥
+Γ (Σ {A} W F) = A
 
-Δ : ∀ S → (Weighted (Σ S))
-Δ []       ()
-Δ (W ∷ Ss) a = W a
+Δ : ∀ S → (Weighted (Γ S))
+Δ I       ()
+Δ (Σ W F) a = W a
 
-_/_ : ∀ S → (Σ S) → Session
-[] / ()
-(W ∷ Ss) / a = ♭ Ss a
+_/_ : ∀ S → (Γ S) → Session
+I       / ()
+(Σ W F) / a = ♭ F a
 
 -- Singletons
 
 ⟨_w/_⟩ : (A : Set) → (Weighted A) → Session
-⟨ A w/ W ⟩ = W ∷ (♯ λ a → [])
+⟨ A w/ W ⟩ = Σ W (♯ λ a → I)
 
 ⟨_⟩ : Set → Session
-⟨ A ⟩ = ⟨ A w/ discrete ⟩
+⟨ A ⟩ = ⟨ A w/ δ ⟩
 
 -- Sequencing
 
 _&_ : Session → Session → Session
-[]       & T = T
-(W ∷ Ss) & T = W ∷ (♯ λ a → ♭ Ss a & T)
-
--- Ensure an initial action
-
-lift : Session → Session
-lift []       = ⟨ ⊤ ⟩
-lift (W ∷ Ss) = W ∷ Ss
-
--- Option
-
-opt : ∀ S → (Maybe (Σ S)) → Session
-opt S (just a)  = (S / a)
-opt S (nothing) = []
-
-¿ : Session → Session
-¿ S = (⟨Maybe⟩ (Δ (lift S))) ∷ (♯ opt (lift S))
+I       & T = T
+(Σ W F) & T = Σ W (♯ λ a → ♭ F a & T)
 
 -- Choice
 
-choice : ∀ S T → (Σ S ⊎ Σ T) → Session
-choice S T (inj₁ a) = S / a
-choice S T (inj₂ b) = T / b
-
 _⊕_ : Session → Session → Session
-S ⊕ T = (Δ (lift S) ⟨⊎⟩ Δ (lift T)) ∷ (♯ choice (lift S) (lift T))
+I ⊕ T = I
+S ⊕ I = I
+S ⊕ T = Σ δ (♯ λ b → if b then S else T)
+
+-- Option
+
+¿ : Session → Session
+¿ I = I
+¿ S = Σ δ (♯ λ b → if b then S else I)
 
 -- Kleene star
 
 -- It would be nice if I could just define ¡ S = ¿ (S & ¡ S),
 -- but that doesn't pass the termination checker, so I have
 -- to expand out the definition.
- 
+
 mutual
 
+  many : Session → Bool → Session
+  many S true = S &¡ S
+  many S false = I
+  
   _&¡_ : Session → Session → Session
-  []       &¡ T = ¡ T
-  (W ∷ Ss) &¡ T = W ∷ (♯ λ a → ♭ Ss a &¡ T)
+  I       &¡ T = Σ δ (♯ many T)
+  (Σ W F) &¡ T = Σ W (♯ λ a → ♭ F a &¡ T)
 
-  many : ∀ S T → (Maybe (Σ S)) → Session
-  many S T (just a) = (S / a) &¡ T
-  many S T nothing  = []
-
-  ¡ : Session → Session
-  ¡ S = (⟨Maybe⟩ (Δ (lift S))) ∷ (♯ many (lift S) S)
-
--- Variant of Kleene star that only admits streams, not lists.
--- Note that this type has no completed traces, only partial
--- traces (which are isomorphic to partial lists).
-
-mutual
-
-  _&ω_ : Session → Session → Session
-  []       &ω T = ω T
-  (W ∷ Ss) &ω T = W ∷ (♯ λ a → ♭ Ss a &ω T)
-
-  inf : ∀ S T → (Σ S) → Session
-  inf S T a = (S / a) &ω T
-
-  ω : Session → Session
-  ω S = (Δ (lift S)) ∷ (♯ inf (lift S) S)
+¡ : Session → Session
+¡ S = I &¡ S
 
 -- Bytes
 

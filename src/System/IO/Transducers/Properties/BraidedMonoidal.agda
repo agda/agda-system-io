@@ -28,8 +28,8 @@ back {W ∷ Ss} (a ∷ as) = back {♭ Ss a} as
 ⟦assoc⟧ {W ∷ Ss} (a ∷ as) = a ∷ ⟦assoc⟧ {♭ Ss a} as
 
 assoc-semantics : ∀ {S T U} → (⟦ assoc {S} {T} {U} ⟧ ≃ ⟦assoc⟧ {S} {T} {U})
-assoc-semantics {[]} as = refl
-assoc-semantics {W ∷ Ss} [] = refl
+assoc-semantics {[]}     as       = refl
+assoc-semantics {W ∷ Ss} []       = refl
 assoc-semantics {W ∷ Ss} (a ∷ as) = cong (_∷_ a) (assoc-semantics {♭ Ss a} as)
 
 ⟦delay⟧ : ∀ S {T U} → (Trace T → Trace U) → (Trace (S & T) → Trace U)

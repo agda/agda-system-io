@@ -1,5 +1,7 @@
 open import Coinduction using ( ∞ ; ♭ ; ♯_ )
-open import System.IO.Transducers.Session using ( Weighted ; Session ; [] ; _∷_ ; dom ; Σ ; _/_ )
+open import Relation.Binary.PropositionalEquality using ( _≡_ ; _≢_ ; refl )
+open import Relation.Nullary using ( Dec ; yes ; no )
+open import System.IO.Transducers.Session using ( Weighted ; Session ; I ; Σ )
 
 module System.IO.Transducers.Trace where
 
@@ -10,30 +12,35 @@ infixr 5 _∷_ _++_ _++'_
 -- The name "trace" comes from process algebra,
 -- it's called a play in games semantics, or a word of an automaton.
 
--- There's two ways to build traces, both of which are useful.
--- They can be built top-down, as paths from the root of a tree to a subtree:
-
-data _≥_ : Session → Session → Set₁ where
-  [] : ∀ {S} → (S ≥ S)
-  _∷_ : ∀ {A Ss T} → {V : Weighted A} → (a : A) → (as : (♭ Ss a) ≥ T) → ((V ∷ Ss) ≥ T)
-
--- Or they can be built bottom-up, as paths from a subtree back to the root:
-
-data _≤_ : Session → Session → Set₁ where
-  [] : ∀ {S} → (S ≤ S)
-  _∷_ : ∀ {A Ss T} → {V : Weighted A} → (a : A) → (as : (V ∷ Ss) ≤ T) → (♭ Ss a ≤ T)
-
--- Incomplete traces
-
 data Trace : Session → Set₁ where
   [] : ∀ {S} → (Trace S)
-  _∷_ : ∀ {A Ss} → {V : Weighted A} → (a : A) → (as : Trace (♭ Ss a)) → (Trace (V ∷ Ss))
+  _∷_ : ∀ {A F} → {W : Weighted A} → (a : A) → (as : Trace (♭ F a)) → (Trace (Σ W F))
 
--- Prefix order on incomplete traces
+-- Traces ending in [] at type I are completed traces
+
+data ✓ : ∀ {S} → Trace S → Set₁ where
+  [] : ✓ ([] {I})
+  _∷_ : ∀ {A F W} → (a : A) → ∀ {as} → (✓ {♭ F a} as) → (✓ {Σ W F} (a ∷ as))
+
+-- Partial traces come with a prefix order.
 
 data _⊑_ : ∀ {S} → (Trace S) → (Trace S) → Set₁ where
   [] : ∀ {S} {as : Trace S} → ([] ⊑ as)
-  _∷_ : ∀ {A W Ss} (a : A) {as bs} → (_⊑_ {♭ Ss a} as bs) → (_⊑_ {W ∷ Ss} (a ∷ as) (a ∷ bs))
+  _∷_ : ∀ {A W F} (a : A) {as bs} → (_⊑_ {♭ F a} as bs) → (_⊑_ {Σ W F} (a ∷ as) (a ∷ bs))
+
+-- We can also provide types for partial traces which record the
+-- source and target session.  There's two ways to build such traces:
+-- either top-down, as paths from the root of a tree to a subtree:
+
+data _≥_ : Session → Session → Set₁ where
+  [] : ∀ {S} → (S ≥ S)
+  _∷_ : ∀ {A F T} → {W : Weighted A} → (a : A) → (as : (♭ F a) ≥ T) → (Σ W F ≥ T)
+
+-- or bottom-up, as paths from a subtree back to the root:
+
+data _≤_ : Session → Session → Set₁ where
+  [] : ∀ {S} → (S ≤ S)
+  _∷_ : ∀ {A F T} → {W : Weighted A} → (a : A) → (as : Σ W F ≤ T) → (♭ F a ≤ T)
 
 -- Traces form categories, where composition is concatenation.
 
@@ -44,16 +51,6 @@ _++_ : ∀ {S T U} → (S ≥ T) → (T ≥ U) → (S ≥ U)
 _++'_ : ∀ {S T U} → (S ≤ T) → (T ≤ U) → (S ≤ U)
 []       ++' bs = bs
 (a ∷ as) ++' bs = a ∷ (as ++' bs)
-
--- A variant on cons which applies to any session:
-
-_◁_ : ∀ {S T} → (a : Σ S) → (S ≤ T) → (S / a ≤ T)
-_◁_ {[]}    () as
-_◁_ {V ∷ Ss} a as = a ∷ as
-
-_▷_ : ∀ {S T} → (a : Σ S) → (S / a ≥ T) → (S ≥ T)
-_▷_ {[]}    () as
-_▷_ {V ∷ Ss} a as = a ∷ as
 
 -- Trace reversal gives a natural isomorphism between the categories.
 
