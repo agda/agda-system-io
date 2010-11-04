@@ -1,6 +1,6 @@
 open import Coinduction using ( ♭ )
 open import Relation.Binary.PropositionalEquality using ( _≡_ ; refl ; sym ; cong )
-open import System.IO.Transducers.Lazy using ( _⇒_is_ ; inp ; out ; done ; strict ; lazy ; ι ; _⟫_ ; ⟦_⟧ ; _≃_ )
+open import System.IO.Transducers.Syntax using ( _⇒_is_ ; inp ; out ; done ; strict ; lazy ; ι ; _⟫_ ; ⟦_⟧ ; _≃_ )
 open import System.IO.Transducers.Trace using ( Trace ; [] ; _∷_ )
 
 module System.IO.Transducers.Properties.Category where
