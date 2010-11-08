@@ -7,10 +7,11 @@ open import Data.Maybe using ( Maybe ; just ; nothing )
 open import Data.Sum using ( _⊎_ ; inj₁ ; inj₂ )
 open import Data.Product using ( ∃ ; _,_ )
 open import Data.ByteString using ( ByteString ; strict ; null )
+open import Relation.Binary.PropositionalEquality using ( _≡_ ; refl )
 open import System.IO using ( IO ; Command ; return ; _>>_ ; _>>=_ ; skip ; getBytes ; putBytes ; commit )
-open import System.IO.Transducers.Syntax using ( _⇒_ ; inp ; out ; done ; _⟫_ )
+open import System.IO.Transducers.Lazy using ( _⇒_ ; inp ; out ; id ; done ; _⟫_ )
 open import System.IO.Transducers.Session using ( I ; Σ ; Bytes )
-open import System.IO.Transducers.Function using ( _⇛_ )
+open import System.IO.Transducers.Strict using ( _⇛_ )
 
 module System.IO.Transducers.IO where
 
@@ -21,16 +22,15 @@ postulate
 {-# COMPILED _catch_ (\ _ -> catch) #-}
 
 runI : (I ⇒ Bytes) → Command
+runI (id ())
+runI (inp {} P)
+runI (out true (id ()))
+runI (out true (inp {} P))
 runI (out true (out x P)) = putBytes x >> commit >> runI P
-runI (out false done)     = skip
+runI (out false P)        = skip
 
 getBytes? : IO (Maybe (ByteString strict))
 getBytes? = (getBytes >>= λ x → return (just x)) catch (λ e → return nothing)
-
-inp/out : ∀ {S B W G} → (S ⇒ Σ {B} W G) → (∞ (S ⇛ Σ W G)) ⊎ (∃ λ b → S ⇒ ♭ G b)
-inp/out (inp P)   = inj₁ P
-inp/out (out b P) = inj₂ (b , P)
-inp/out done      = inj₁ (♯ λ a → out a done)
 
 mutual
 
@@ -39,10 +39,10 @@ mutual
   run' P nothing  = runI (out false done ⟫ P)
 
   run : (Bytes ⇒ Bytes) → Command
-  run (inp P)       = getBytes? >>= run' (inp P)
-  run (out true P)  with inp/out P
-  run (out true P)  | inj₁ Q       = getBytes? >>= run' (out true (inp Q))
-  run (out true P)  | inj₂ (b , Q) = putBytes b >> run Q
-  run (out false P) = skip
-  run done          = getBytes? >>= run' done
+  run (inp P)                      = getBytes? >>= run' (inp P)
+  run (out true (inp P))           = getBytes? >>= run' (out true (inp P))
+  run (out true (out b P))         = putBytes b >> run P
+  run (out true (id Bytes≡Bytes')) = skip
+  run (out false P)                = skip
+  run (id refl)                    = getBytes? >>= run' done
   

@@ -5,11 +5,11 @@ open import Data.ByteString.UTF8 using ( fromString ) renaming ( span to #span )
 open import Data.Natural using ( Natural )
 open import Data.Product using ( _×_ ; _,_ )
 open import Data.Char using ( Char )
-open import System.IO.Transducers.Syntax using ( _⇒_ ; inp ; out ; done ; _⟫_ ; π₁ ; π₂ ; _[&]_ )
+open import System.IO.Transducers.Lazy using ( _⇒_ ; inp ; out ; done ; _⟫_ ; π₁ ; π₂ ; _[&]_ )
 open import System.IO.Transducers.Weight using ( weight )
 open import System.IO.Transducers.Stateful using ( loop )
 open import System.IO.Transducers.Session using ( ⟨_⟩ ; _&_ ; ¿ ; * ; _&*_ ; Bytes ; Bytes' ; Strings )
-open import System.IO.Transducers.Function using ( _⇛_ )
+open import System.IO.Transducers.Strict using ( _⇛_ )
 
 module System.IO.Transducers.UTF8 where
 
@@ -34,17 +34,17 @@ break φ = span (λ x → not (φ x))
 
 mutual
 
-  nonempty+ : Bytes' ⇛ ¿ Bytes
+  nonempty+ : Bytes' & Bytes ⇛ ¿ Bytes & Bytes
   nonempty+ x with null x
   nonempty+ x | true  = inp (♯ nonempty)
   nonempty+ x | false = out true (out true (out x done))
 
-  nonempty : Bytes ⇛ ¿ Bytes
+  nonempty : Bytes & Bytes ⇛ ¿ Bytes & Bytes
   nonempty true  = inp (♯ nonempty+)
   nonempty false = out false done
 
 split? : (Char → Bool) → Bytes ⇒ (¿ Bytes & Bytes)
-split? φ = inp (♯ span φ) ⟫ π₂ {Bytes} ⟫ inp (♯ break φ) ⟫ (inp (♯ nonempty) [&] done)
+split? φ = inp (♯ span φ) ⟫ π₂ {Bytes} ⟫ inp (♯ break φ) ⟫ inp (♯ nonempty)
 
 split : (Char → Bool) → Bytes ⇒ * Bytes
 split φ = loop {Bytes} (split? φ) ⟫ π₁

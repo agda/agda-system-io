@@ -65,6 +65,12 @@ _/_ : ∀ S → (Γ S) → Session
 I       / ()
 (Σ W F) / a = ♭ F a
 
+-- IsΣ S is inhabited whenever S is of the form Σ V F
+
+IsΣ : Session → Set
+IsΣ I       = ⊥
+IsΣ (Σ V F) = ⊤
+
 -- Singletons
 
 ⟨_w/_⟩ : (A : Set) → (Weighted A) → Session

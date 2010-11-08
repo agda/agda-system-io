@@ -1,6 +1,7 @@
 open import Coinduction using ( ♭ )
 open import Relation.Binary.PropositionalEquality using ( _≡_ ; refl ; sym ; cong )
-open import System.IO.Transducers.Syntax using ( _⇒_is_ ; inp ; out ; done ; strict ; lazy ; ι ; _⟫_ ; ⟦_⟧ ; _≃_ )
+open import System.IO.Transducers.Lazy using ( _⇒_ ; inp ; out ; id ; done ; _⟫_ ; ⟦_⟧ ; _≃_ )
+open import System.IO.Transducers.Session using ( Session ; I ; Σ )
 open import System.IO.Transducers.Trace using ( Trace ; [] ; _∷_ )
 
 module System.IO.Transducers.Properties.Category where
@@ -12,7 +13,7 @@ open Relation.Binary.PropositionalEquality.≡-Reasoning
 ⟦done⟧ : ∀ {S} → (Trace S)  → (Trace S)
 ⟦done⟧ as = as
 
-done-semantics : ∀ {S s} → ⟦ done {S} {s} ⟧ ≃ ⟦done⟧
+done-semantics : ∀ {S} → ⟦ done {S} ⟧ ≃ ⟦done⟧
 done-semantics as = refl
 
 -- Trace semantics of composition
@@ -22,22 +23,24 @@ _⟦⟫⟧_ : ∀ {S T U} →
     (Trace S) → (Trace U)
 (f ⟦⟫⟧ g) as = g (f as)
 
-⟫-semantics : ∀ {S T U s} → 
-  (P : S ⇒ T is s) → (Q : T ⇒ U is s) →
+⟫-semantics : ∀ {S T U} → 
+  (P : S ⇒ T) → (Q : T ⇒ U) →
     (⟦ P ⟫ Q ⟧ ≃ ⟦ P ⟧ ⟦⟫⟧ ⟦ Q ⟧)
-⟫-semantics done      Q         as       = refl
-⟫-semantics (inp P)   done      as       = refl
-⟫-semantics (out b P) done      as       = refl
-⟫-semantics (inp P)   (out c Q) as       = cong (_∷_ c) (⟫-semantics (inp P) Q as)
-⟫-semantics (out b P) (out c Q) as       = cong (_∷_ c) (⟫-semantics (out b P) Q as)
-⟫-semantics (out b P) (inp Q)   as       = ⟫-semantics P (♭ Q b) as
-⟫-semantics (inp P)   (inp Q)   []       = refl
-⟫-semantics (inp P)   (inp Q)   (a ∷ as) = ⟫-semantics (♭ P a) (inp Q) as
+⟫-semantics                 (id refl)  Q          as       = refl
+⟫-semantics                 (inp P)    (id refl)  as       = refl
+⟫-semantics                 (out b P)  (id refl)  as       = refl
+⟫-semantics                 (inp P)    (out c Q)  as       = cong (_∷_ c) (⟫-semantics (inp P) Q as)
+⟫-semantics                 (out b P)  (out c Q)  as       = cong (_∷_ c) (⟫-semantics (out b P) Q as)
+⟫-semantics                 (out b P)  (inp Q)    as       = ⟫-semantics P (♭ Q b) as
+⟫-semantics {Σ V F} {Σ W G} (inp P)    (inp Q)    []       = refl
+⟫-semantics {Σ V F} {Σ W G} (inp P)    (inp Q)    (a ∷ as) = ⟫-semantics (♭ P a) (inp Q) as
+⟫-semantics {I}     {T}     (inp {} P) (inp Q)    as
+⟫-semantics {S}     {I}     (inp P)    (inp {} Q) as
 
 -- Composition respects ≃
 
-⟫-resp-≃ : ∀ {S T U s} 
-  (P₁ P₂ : S ⇒ T is s) (Q₁ Q₂ : T ⇒ U is s) → 
+⟫-resp-≃ : ∀ {S T U} 
+  (P₁ P₂ : S ⇒ T) (Q₁ Q₂ : T ⇒ U) → 
     (⟦ P₁ ⟧ ≃ ⟦ P₂ ⟧) → (⟦ Q₁ ⟧ ≃ ⟦ Q₂ ⟧) → 
       (⟦ P₁ ⟫ Q₁ ⟧ ≃ ⟦ P₂ ⟫ Q₂ ⟧)
 ⟫-resp-≃ P₁ P₂ Q₁ Q₂ P₁≃P₂ Q₁≃Q₂ as =
@@ -55,18 +58,18 @@ _⟦⟫⟧_ : ∀ {S T U} →
 
 -- Left identity of composition
 
-⟫-identity₁ : ∀ {S T s} (P : S ⇒ T is s) → ⟦ done ⟫ P ⟧ ≃ ⟦ P ⟧
+⟫-identity₁ : ∀ {S T} (P : S ⇒ T) → ⟦ done ⟫ P ⟧ ≃ ⟦ P ⟧
 ⟫-identity₁ P = ⟫-semantics done P
 
 -- Right identity of composition
 
-⟫-identity₂ : ∀ {S T s} (P : S ⇒ T is s) → ⟦ P ⟫ done ⟧ ≃ ⟦ P ⟧
+⟫-identity₂ : ∀ {S T} (P : S ⇒ T) → ⟦ P ⟫ done ⟧ ≃ ⟦ P ⟧
 ⟫-identity₂ P = ⟫-semantics P done
 
 -- Associativity of composition
 
-⟫-assoc : ∀ {S T U V s} 
-  (P : S ⇒ T is s) (Q : T ⇒ U is s) (R : U ⇒ V is s) → 
+⟫-assoc : ∀ {S T U V} 
+  (P : S ⇒ T) (Q : T ⇒ U) (R : U ⇒ V) → 
     ⟦ (P ⟫ Q) ⟫ R ⟧ ≃ ⟦ P ⟫ (Q ⟫ R) ⟧
 ⟫-assoc P Q R as =
   begin

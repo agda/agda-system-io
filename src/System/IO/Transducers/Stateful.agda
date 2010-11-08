@@ -4,7 +4,7 @@ open import Data.Nat using ( ℕ ; zero ; suc )
 open import Data.Natural using ( Natural ; # ; % ; _+_ )
 open import Data.Strict using ( Strict ; ! )
 open import System.IO.Transducers.List using ( S⊆S&*T )
-open import System.IO.Transducers.Syntax using ( _⇒_ ; inp ; out ; done ; out* ; _[&]_ ; _⟫_ )
+open import System.IO.Transducers.Lazy using ( _⇒_ ; inp ; out ; id ; done ; out* ; _[&]_ ; _⟫_ )
 open import System.IO.Transducers.Session using ( I ; Σ ; ⟨_⟩ ; _&_ ; ¿ ; * ; _&*_ )
 open import System.IO.Transducers.Trace using ( [] ; _∷_ ; _≤_ )
 open import Relation.Binary.PropositionalEquality using ( _≡_ ; refl )
@@ -26,24 +26,26 @@ module System.IO.Transducers.Stateful where
 -- Lookahead.
 
 -- Lookahead buffers up all input until some output is produced.
--- If the output is (just x), then we discard the buffer, and
--- continue with the process.  If the output is nothing, then we
+-- If the output is true, then we discard the buffer, and
+-- continue with the process.  If the output is false, then we
 -- return the buffer to the output stream and discard the process.
 
-lookahead¿' : ∀ {T S S'} → (S' ≤ S) → (S' ⇒ ¿ T & S) → (S' ⇒ ¿ T & S)
-lookahead¿' {T} as (inp F) = inp (♯ λ a → lookahead¿' {T} (a ∷ as) (♭ F a))
-lookahead¿' {T} as (out true P) = out true P
-lookahead¿' {T} as (out false P) = out false (out* as done)
-lookahead¿' {T} as (done) = inp (♯ λ a → lookahead¿' {T} (a ∷ as) (out a done))
+lookahead¿' : ∀ {T S' S} → (S' ≤ S) → (S' ⇒ ¿ T & S) → (S' ⇒ ¿ T & S)
+lookahead¿' {T} {I}     as (inp {} P)
+lookahead¿' {T} {Σ V F} as (inp P)       = inp (♯ λ a → lookahead¿' {T} (a ∷ as) (♭ P a))
+lookahead¿' {T}         as (out true P)  = out true P
+lookahead¿' {T}         as (out false P) = out false (out* as done)
+lookahead¿' {T}         as (id refl)     = inp (♯ λ a → lookahead¿' {T} (a ∷ as) (out a done))
 
 lookahead¿ : ∀ {T S} → (S ⇒ ¿ T & S) → (S ⇒ ¿ T & S)
 lookahead¿ {T} = lookahead¿' {T} []
 
-lookahead*' : ∀ {T S S'} → (S' ≤ S) → (S' ⇒ * T & S) → (S' ⇒ * T & S)
-lookahead*' {T} as (inp F) = inp (♯ λ a → lookahead*' {T} (a ∷ as) (♭ F a))
-lookahead*' {T} as (out true P) = out true P
-lookahead*' {T} as (out false P) = out false (out* as done)
-lookahead*' {T} as (done) = inp (♯ λ a → lookahead*' {T} (a ∷ as) (out a done))
+lookahead*' : ∀ {T S' S} → (S' ≤ S) → (S' ⇒ * T & S) → (S' ⇒ * T & S)
+lookahead*' {T} {I}     as (inp {} P)
+lookahead*' {T} {Σ V F} as (inp P)       = inp (♯ λ a → lookahead*' {T} (a ∷ as) (♭ P a))
+lookahead*' {T}         as (out true P)  = out true P
+lookahead*' {T}         as (out false P) = out false (out* as done)
+lookahead*' {T}         as (id refl)     = inp (♯ λ a → lookahead*' {T} (a ∷ as) (out a done))
 
 lookahead* : ∀ {T S} → (S ⇒ * T & S) → (S ⇒ * T & S)
 lookahead* {T} = lookahead*' {T} []
@@ -109,14 +111,17 @@ mutual
   loop'''' {T} {T'} (! n) P Q R = loop''' {T} {T'} (% n) n P Q R
 
   loop''' : ∀ {T T' U S S'} → ℕ → Natural → (U ⇒ S) → (S ⇒ T' & S') → (S' ⇒ ¿ T & S') → (U ⇒ (T' &* T) & S')
-  loop''' {T} {I}             m n P           Q         R = loop' {T} m n (P ⟫ Q) R R
-  loop''' {T} {Σ V F} {Σ W G} m n (inp P)     (inp Q)   R = inp (♯ λ a → loop'''' {T} {Σ V F} (! (n + W a)) (♭ P a) (inp Q) R)
-  loop''' {T} {Σ V F}         m n (out a P)   (inp Q)   R = loop''' {T} {Σ V F} m n P (♭ Q a) R
-  loop''' {T} {Σ V F} {Σ W G} m n done        (inp P)   R = inp (♯ λ a → loop'''' {T} {Σ V F} (! (n + W a)) done (♭ P a) R)
-  loop''' {T} {Σ V F}         m n P           (out b Q) R = out b (loop''' {T} {♭ F b} m n P Q R)
-  loop''' {T} {Σ V F} {Σ W G} m n (inp P)     done      R = inp (♯ λ a → loop'''' {T} {Σ V F} (! (n + W a)) (♭ P a) done R)
-  loop''' {T} {Σ V F}         m n (out a P)   done      R = out a (loop''' {T} {♭ F a} m n P done R)
-  loop''' {T} {Σ V F}         m n done        done      R = inp (♯ λ a → out a (loop'''' {T} {♭ F a} (! (n + (V a))) done done R))
+  loop''' {T} {I}                     m n P           Q          R = loop' {T} m n (P ⟫ Q) R R
+  loop''' {T} {Σ V F} {I}             m n (inp {} P)  Q          R
+  loop''' {T} {Σ V F} {Σ W G} {I}     m n (inp P)     (inp {} Q) R
+  loop''' {T} {Σ V F} {Σ W G} {Σ X H} m n (inp P)     (inp Q)    R = inp (♯ λ a → loop'''' {T} {Σ V F} (! (n + W a)) (♭ P a) (inp Q) R)
+  loop''' {T} {Σ V F}                 m n (out a P)   (inp Q)    R = loop''' {T} {Σ V F} m n P (♭ Q a) R
+  loop''' {T} {Σ V F} {I}             m n (id refl)   (inp {} Q) R
+  loop''' {T} {Σ V F} {Σ W G}         m n (id refl)   (inp Q)    R = inp (♯ λ a → loop'''' {T} {Σ V F} (! (n + W a)) done (♭ Q a) R)
+  loop''' {T} {Σ V F}                 m n P           (out b Q)  R = out b (loop''' {T} {♭ F b} m n P Q R)
+  loop''' {T} {Σ V F} {Σ W G}         m n (inp P)     (id refl)  R = inp (♯ λ a → loop'''' {T} {Σ V F} (! (n + W a)) (♭ P a) done R)
+  loop''' {T} {Σ V F}                 m n (out a P)   (id refl)  R = out a (loop''' {T} {♭ F a} m n P done R)
+  loop''' {T} {Σ V F}                 m n (id refl)   (id refl)  R = inp (♯ λ a → out a (loop'''' {T} {♭ F a} (! (n + (V a))) done done R))
 
   -- loop' 0 P Q R is equivalent to P ⟫ Q ⟫ loop R ⟨¿⟩ done
 
@@ -124,15 +129,18 @@ mutual
   loop'' {T} (! n) P Q R = loop' {T} (% n) n P Q R
 
   loop' : ∀ {T U S S'} → ℕ → Natural → (U ⇒ S) → (S ⇒ ¿ T & S') → (S' ⇒ ¿ T & S') → (U ⇒ * T & S')
-  loop' {T} {Σ V F} m       n (inp P)   (inp Q)       R = inp (♯ λ a → loop'' {T} (! (n + V a)) (♭ P a) (inp Q) R)
-  loop' {T}         m       n (out a P) (inp Q)       R = loop' {T} m n P (♭ Q a) R
-  loop' {T} {Σ V F} m       n done      (inp Q)       R = inp (♯ λ a → loop'' {T} (! (n + V a)) done (♭ Q a) R)
-  loop' {T}         zero    n P         (out true Q)  R = out true (P ⟫ Q ⟫ S⊆S&*T {T} [&] done)
-  loop' {T}         (suc m) n P         (out true Q)  R = out true (loop''' {T} {T} m n P Q R)
-  loop' {T}         m       n P         (out false Q) R = out false (P ⟫ Q)
-  loop' {T} {Σ V F} m       n (inp P)   done          R = inp (♯ λ a → loop'' {T} (! (n + V a)) (♭ P a) done R)
-  loop' {T}         m       n (out a P) done          R = loop' {T} m n P (out a done) R
-  loop' {T}         m       n done      done          R = inp (♯ λ a → loop'' {T} (! (n + # 1)) done (out a done) R)
+  loop' {T} {I}             m       n (inp {} P) Q             R
+  loop' {T} {Σ V F} {I}     m       n (inp P)    (inp {} Q)    R
+  loop' {T} {Σ V F} {Σ X H} m       n (inp P)    (inp Q)       R = inp (♯ λ a → loop'' {T} (! (n + V a)) (♭ P a) (inp Q) R)
+  loop' {T}                 m       n (out a P)  (inp Q)       R = loop' {T} m n P (♭ Q a) R
+  loop' {T} {I}             m       n (id refl)  (inp {} Q)    R
+  loop' {T} {Σ V F}         m       n (id refl)  (inp Q)       R = inp (♯ λ a → loop'' {T} (! (n + V a)) done (♭ Q a) R)
+  loop' {T}                 zero    n P          (out true Q)  R = out true (P ⟫ Q ⟫ S⊆S&*T {T} [&] done)
+  loop' {T}                 (suc m) n P          (out true Q)  R = out true (loop''' {T} {T} m n P Q R)
+  loop' {T}                 m       n P          (out false Q) R = out false (P ⟫ Q)
+  loop' {T} {Σ V F}         m       n (inp P)    (id refl)     R = inp (♯ λ a → loop'' {T} (! (n + V a)) (♭ P a) done R)
+  loop' {T}                 m       n (out a P)  (id refl)     R = loop' {T} m n P (out a done) R
+  loop' {T}                 m       n (id refl)  (id refl)     R = inp (♯ λ a → loop'' {T} (! (n + # 1)) done (out a done) R)
 
 loop : ∀ {T S} → (S ⇒ ¿ T & S) → (S ⇒ * T & S)
 loop {T} P = loop' {T} zero (# 0) done P P

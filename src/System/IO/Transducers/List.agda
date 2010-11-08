@@ -3,8 +3,8 @@ open import Data.Strict using ( Strict ; ! )
 open import Data.Natural using ( Natural ; # ; _+_ )
 open import Data.Bool using ( Bool ; true ; false )
 open import System.IO.Transducers.Session using ( I ; Σ ; ⟨_⟩ ; * ; _&*_ ; ¿ ) 
-open import System.IO.Transducers.Syntax using ( _⇒_ ; inp ; out ; done )
-open import System.IO.Transducers.Function using ( _⇛_ )
+open import System.IO.Transducers.Lazy using ( _⇒_ ; inp ; out ; done )
+open import System.IO.Transducers.Strict using ( _⇛_ )
 
 module System.IO.Transducers.List where
 

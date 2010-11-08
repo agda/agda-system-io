@@ -2,7 +2,7 @@ open import Coinduction using ( ♯_ )
 open import Data.Natural using ( Natural ; # ; _+_ )
 open import Data.Strict using ( Strict ; ! )
 open import System.IO.Transducers.Session using ( I ; Σ ; ⟨_⟩ )
-open import System.IO.Transducers.Syntax using ( _⇒_ ; inp ; out ; done )
+open import System.IO.Transducers.Lazy using ( _⇒_ ; inp ; out ; done )
 
 module System.IO.Transducers.Weight where
 
