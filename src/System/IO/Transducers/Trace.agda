@@ -1,7 +1,7 @@
 open import Coinduction using ( ∞ ; ♭ ; ♯_ )
 open import Relation.Binary.PropositionalEquality using ( _≡_ ; _≢_ ; refl )
 open import Relation.Nullary using ( Dec ; yes ; no )
-open import System.IO.Transducers.Session using ( Weighted ; Session ; I ; Σ ; Γ ; _/_ )
+open import System.IO.Transducers.Session using ( Session ; I ; Σ ; Γ ; _/_ ; IsI )
 
 module System.IO.Transducers.Trace where
 
@@ -19,7 +19,7 @@ data Trace (S : Session) : Set where
 -- Traces ending in [] at type I are completed traces
 
 data ✓ {S : Session} : (Trace S) → Set where
-  [] : ✓ []
+  [] : {isI : IsI S} → ✓ []
   _∷_ : (a : Γ S) → ∀ {as} → (✓ as) → (✓ (a ∷ as))
 
 -- Partial traces come with a prefix order.

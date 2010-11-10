@@ -1,8 +1,9 @@
 open import Coinduction using ( ♭ )
 open import Relation.Binary.PropositionalEquality using ( _≡_ ; refl ; sym ; cong )
-open import System.IO.Transducers.Lazy using ( _⇒_ ; inp ; out ; id ; done ; _⟫_ ; ⟦_⟧ ; _≃_ )
-open import System.IO.Transducers.Session using ( Session ; I ; Σ )
+open import System.IO.Transducers.Lazy using ( _⇒_ ; inp ; out ; id ; done ; _⟫_ ; ⟦_⟧ ; _≃_ ; equiv )
+open import System.IO.Transducers.Session using ( Session ; I ; Σ ; _∼_ ; ∼-refl ; ∼-trans )
 open import System.IO.Transducers.Trace using ( Trace ; [] ; _∷_ )
+open import System.IO.Transducers.Properties.Lemmas using ( ⟦⟧-resp-∼ )
 
 module System.IO.Transducers.Properties.Category where
 
@@ -23,11 +24,10 @@ _⟦⟫⟧_ : ∀ {S T U} →
     (Trace S) → (Trace U)
 (f ⟦⟫⟧ g) as = g (f as)
 
-⟫-semantics : ∀ {S T U} → 
-  (P : S ⇒ T) → (Q : T ⇒ U) →
+⟫-semantics : ∀ {S T U} (P : S ⇒ T) (Q : T ⇒ U) →
     (⟦ P ⟫ Q ⟧ ≃ ⟦ P ⟧ ⟦⟫⟧ ⟦ Q ⟧)
 ⟫-semantics                 (id refl)  Q          as       = refl
-⟫-semantics                 (inp P)    (id refl)  as       = refl
+⟫-semantics                  (inp P)    (id refl)  as       = refl
 ⟫-semantics                 (out b P)  (id refl)  as       = refl
 ⟫-semantics                 (inp P)    (out c Q)  as       = cong (_∷_ c) (⟫-semantics (inp P) Q as)
 ⟫-semantics                 (out b P)  (out c Q)  as       = cong (_∷_ c) (⟫-semantics (out b P) Q as)
@@ -37,12 +37,41 @@ _⟦⟫⟧_ : ∀ {S T U} →
 ⟫-semantics {I}     {T}     (inp {} P) (inp Q)    as
 ⟫-semantics {S}     {I}     (inp P)    (inp {} Q) as
 
+-- Reflexivity is equal to identity
+
+equiv-resp-refl : ∀ {S} → ⟦ equiv (∼-refl {S}) ⟧ ≃ ⟦done⟧
+equiv-resp-refl {I}     as = refl
+equiv-resp-refl {Σ V F} [] = refl
+equiv-resp-refl {Σ V F} (a ∷ as) = cong (_∷_ a) (equiv-resp-refl as)
+
+-- Transitivity is equal to composition
+
+equiv-resp-trans : ∀ {S T U} (S∼T : S ∼ T) (T∼U : T ∼ U) →
+  ⟦ equiv (∼-trans S∼T T∼U) ⟧ ≃ ⟦ equiv S∼T ⟧ ⟦⟫⟧ ⟦ equiv T∼U ⟧
+equiv-resp-trans I       I        as       = refl
+equiv-resp-trans (Σ W F) (Σ .W G) []       = refl
+equiv-resp-trans (Σ W F) (Σ .W G) (a ∷ as) = cong (_∷_ a) (equiv-resp-trans (♭ F a) (♭ G a) as)
+
+-- Equivalences form isos
+
+equiv-is-iso : ∀ {S T} → (S∼T : S ∼ T) → (T∼S : T ∼ S) →
+  ⟦ equiv S∼T ⟫ equiv T∼S ⟧ ≃ ⟦ done ⟧
+equiv-is-iso S∼T T∼S as =
+  begin
+    ⟦ equiv S∼T ⟫ equiv T∼S ⟧ as
+  ≡⟨ ⟫-semantics (equiv S∼T) (equiv T∼S) as ⟩
+    ⟦ equiv T∼S ⟧ (⟦ equiv S∼T ⟧ as)
+  ≡⟨ sym (equiv-resp-trans S∼T T∼S as) ⟩
+    ⟦ equiv (∼-trans S∼T T∼S) ⟧ as
+  ≡⟨ ⟦⟧-resp-∼ (∼-trans S∼T T∼S) as ⟩
+    as
+  ∎
+
 -- Composition respects ≃
 
-⟫-resp-≃ : ∀ {S T U} 
-  (P₁ P₂ : S ⇒ T) (Q₁ Q₂ : T ⇒ U) → 
-    (⟦ P₁ ⟧ ≃ ⟦ P₂ ⟧) → (⟦ Q₁ ⟧ ≃ ⟦ Q₂ ⟧) → 
-      (⟦ P₁ ⟫ Q₁ ⟧ ≃ ⟦ P₂ ⟫ Q₂ ⟧)
+⟫-resp-≃ : ∀ {S T U} (P₁ P₂ : S ⇒ T) (Q₁ Q₂ : T ⇒ U) → 
+  (⟦ P₁ ⟧ ≃ ⟦ P₂ ⟧) → (⟦ Q₁ ⟧ ≃ ⟦ Q₂ ⟧) →
+    (⟦ P₁ ⟫ Q₁ ⟧ ≃ ⟦ P₂ ⟫ Q₂ ⟧)
 ⟫-resp-≃ P₁ P₂ Q₁ Q₂ P₁≃P₂ Q₁≃Q₂ as =
   begin
     ⟦ P₁ ⟫ Q₁ ⟧ as
@@ -68,8 +97,7 @@ _⟦⟫⟧_ : ∀ {S T U} →
 
 -- Associativity of composition
 
-⟫-assoc : ∀ {S T U V} 
-  (P : S ⇒ T) (Q : T ⇒ U) (R : U ⇒ V) → 
+⟫-assoc : ∀ {S T U V} (P : S ⇒ T) (Q : T ⇒ U) (R : U ⇒ V) → 
     ⟦ (P ⟫ Q) ⟫ R ⟧ ≃ ⟦ P ⟫ (Q ⟫ R) ⟧
 ⟫-assoc P Q R as =
   begin

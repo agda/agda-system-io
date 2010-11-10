@@ -32,6 +32,7 @@ module System.IO.Transducers.Session where
 -- Finally, they are a lot like automata: states are sessions,
 -- acceptors are leaves, transitions correspond to children.
 
+infixr 4 _∼_
 infixr 6 _⊕_
 infixr 7 _&_ _&*_
 
@@ -51,6 +52,25 @@ data Session : Set₁ where
   I : Session
   Σ : {A : Set} → (W : Weighted A) → (F : ∞ (A → Session)) → Session
 
+-- Equivalence of sessions
+
+data _∼_ : Session → Session → Set₁ where
+  I : I ∼ I
+  Σ : {A : Set} → (W : Weighted A) → {F₁ F₂ : ∞ (A → Session)} →
+    ∞ (∀ a → ♭ F₁ a ∼ ♭ F₂ a) → (Σ W F₁ ∼ Σ W F₂)
+
+∼-refl : ∀ {S} → (S ∼ S)
+∼-refl {I}     = I
+∼-refl {Σ V F} = Σ V (♯ λ a → ∼-refl {♭ F a})
+
+∼-sym : ∀ {S T} → (S ∼ T) → (T ∼ S)
+∼-sym I       = I
+∼-sym (Σ V F) = Σ V (♯ λ a → ∼-sym (♭ F a))
+
+∼-trans : ∀ {S T U} → (S ∼ T) → (T ∼ U) → (S ∼ U)
+∼-trans I       I        = I
+∼-trans (Σ V F) (Σ .V G) = Σ V (♯ λ a → ∼-trans (♭ F a) (♭ G a))
+
 -- Inital alphabet
 
 Γ : Session → Set
@@ -64,6 +84,12 @@ data Session : Set₁ where
 _/_ : ∀ S → (Γ S) → Session
 I       / ()
 (Σ W F) / a = ♭ F a
+
+-- IsI S is inhabited whenever S ≡ I
+
+IsI : Session → Set
+IsI I       = ⊤
+IsI (Σ V F) = ⊥
 
 -- IsΣ S is inhabited whenever S is of the form Σ V F
 
@@ -83,7 +109,20 @@ IsΣ (Σ V F) = ⊤
 
 _&_ : Session → Session → Session
 I       & T = T
-(Σ W F) & T = Σ W (♯ λ a → ♭ F a & T)
+(Σ V F) & T = Σ V (♯ λ a → ♭ F a & T)
+
+-- Units and associativity
+
+unit₁ : ∀ {S} → (I & S ∼ S)
+unit₁ = ∼-refl
+
+unit₂ : ∀ {S} → (S & I ∼ S)
+unit₂ {I} = I
+unit₂ {Σ V F} = Σ V (♯ λ a → unit₂ {♭ F a})
+
+assoc : ∀ {S T U} → (S & (T & U) ∼ (S & T) & U)
+assoc {I} = ∼-refl
+assoc {Σ V F} = Σ V (♯ λ a → assoc {♭ F a})
 
 -- Lazy choice
 

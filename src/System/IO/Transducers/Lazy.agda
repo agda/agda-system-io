@@ -5,7 +5,9 @@ open import Data.Product using ( ∃ ; _×_ ; _,_ ; ,_ )
 open import Data.Strict using ( Strict ; ! )
 open import Data.Sum using ( _⊎_ ; inj₁ ; inj₂ )
 open import Data.Unit using ( ⊤ ; tt )
-open import System.IO.Transducers.Session using ( Session ; I ; Σ ; Γ ; _/_ ; IsΣ ; ⟨_⟩ ; _&_ ; ¿ ; _+_  )
+open import System.IO.Transducers.Session
+  using ( Session ; I ; Σ ; _∼_ ; ∼-sym ; Γ ; _/_ ; IsΣ ; ⟨_⟩ ; _&_ ; ¿ ; _+_  )
+  renaming ( unit₁ to ∼-unit₁ ; unit₂ to ∼-unit₂ ; assoc to ∼-assoc )
 open import System.IO.Transducers.Trace using ( _≥_ ; _≤_ ; Trace ; _⊑_ ; [] ; _∷_ )
 open import Relation.Binary.PropositionalEquality using ( _≡_ ; refl )
 
@@ -66,6 +68,12 @@ f ≃ g = ∀ as → f as ≡ g as
 _≲_ : ∀ {S T} → (f g : Trace S → Trace T) → Set
 f ≲ g = ∀ as → f as ⊑ g as
 
+-- Equivalent sessions give rise to a transducer
+
+equiv : ∀ {S T} → (S ∼ T) → (S ⇒ T)
+equiv I       = done
+equiv (Σ V F) = inp (♯ λ a → out a (equiv (♭ F a)))
+
 -- Transducers form a category with composition given by 
 -- parallel (data flow) composition.  This is defined by the
 -- usual expansion laws for parallel composition, together with
@@ -80,22 +88,45 @@ _⟫_         (out b P)  (inp Q)   = P ⟫ ♭ Q b
 _⟫_ {I}     (inp {} P) Q
 _⟫_ {Σ V F} (inp P)    Q         = inp (♯ λ a → ♭ P a ⟫ Q)
 
+-- Delay a process
+
+delay : ∀ S {T U} → (T ⇒ U) → (S & T) ⇒ U
+delay I       P         = P
+delay S       (out b P) = out b (delay S P)
+delay (Σ V F) P         = inp (♯ λ a → delay (♭ F a) P)
+
 -- The category has monoidal structure given by &, with
 -- action on morphisms:
  
 _[&]_ : ∀ {S T U V} → (S ⇒ T) → (U ⇒ V) → ((S & U) ⇒ (T & V))
+_[&]_ {S}     {I}     P          Q = delay S Q
 _[&]_ {I}     {T}     (inp {} P) Q
-_[&]_ {Σ V F} {T}     (inp P)    Q = inp (♯ λ a → ♭ P a [&] Q)
-_[&]_ {S}     {I}     (out () P) Q
+_[&]_ {Σ V F} {Σ W G} (inp P)    Q = inp (♯ λ a → ♭ P a [&] Q)
 _[&]_ {S}     {Σ W G} (out b P)  Q = out b (P [&] Q)
-_[&]_ {I}             (id refl)  Q = Q
+_[&]_ {I}     {Σ W G} (id ())    Q
 _[&]_ {Σ V F}         (id refl)  Q = inp (♯ λ a → out a (done {♭ F a} [&] Q))
+
+-- Units for &
+
+unit₁ : ∀ {S} → (I & S) ⇒ S
+unit₁ = equiv ∼-unit₁
+
+unit₁⁻¹ : ∀ {S} → S ⇒ (I & S)
+unit₁⁻¹ = equiv (∼-sym ∼-unit₁)
+
+unit₂ : ∀ {S} → (S & I) ⇒ S
+unit₂ = equiv ∼-unit₂
+
+unit₂⁻¹ : ∀ {S} → S ⇒ (S & I)
+unit₂⁻¹ = equiv (∼-sym ∼-unit₂)
 
 -- Associativity of &
 
-assoc : ∀ {S T U} → ((S & (T & U)) ⇒ ((S & T) & U))
-assoc {I}     = done
-assoc {Σ V F} = inp (♯ λ a → out a (assoc {♭ F a}))
+assoc : ∀ {S T U} → (S & (T & U)) ⇒ ((S & T) & U)
+assoc {S} = equiv (∼-assoc {S})
+
+assoc⁻¹ : ∀ {S T U} → ((S & T) & U) ⇒ (S & (T & U))
+assoc⁻¹ {S} = equiv (∼-sym (∼-assoc {S}))
 
 -- The projection morphisms for [] and &:
 
