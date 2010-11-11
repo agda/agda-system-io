@@ -3,13 +3,13 @@ open import Data.Empty using ( ⊥-elim )
 open import Data.Sum using ( _⊎_ ; inj₁ ; inj₂ )
 open import Relation.Binary.PropositionalEquality using ( _≡_ ; refl ; sym ; cong ; cong₂ )
 open import Relation.Nullary using ( ¬_ ; Dec ; yes ; no )
-open import System.IO.Transducers.Lazy using ( _⇒_ ; inp ; out ; id ; done ; _⟫_ ; assoc ; assoc⁻¹ ; unit₁ ; unit₁⁻¹ ; unit₂ ; unit₂⁻¹ ; delay ; _[&]_ ; ⟦_⟧ ; _≃_ )
+open import System.IO.Transducers.Lazy using ( _⇒_ ; inp ; out ; id ; done ; _⟫_ ; equiv ; assoc ; assoc⁻¹ ; unit₁ ; unit₁⁻¹ ; unit₂ ; unit₂⁻¹ ; delay ; _[&]_ ; ⟦_⟧ ; _≃_ )
 open import System.IO.Transducers.Strict using ( Strict )
-open import System.IO.Transducers.Session using ( I ; Σ ; _∼_ ; ∼-sym ; _&_ )
+open import System.IO.Transducers.Session using ( I ; Σ ; _∼_ ; ∼-refl ; ∼-trans ; ∼-sym ; _&_ )
   renaming ( unit₁ to ∼-unit₁ ; unit₂ to ∼-unit₂ ; assoc to ∼-assoc )
 open import System.IO.Transducers.Trace using ( Trace ; ✓ ; [] ; _∷_ )
-open import System.IO.Transducers.Properties.Category using ( ⟦done⟧ ; _⟦⟫⟧_ ; ⟫-semantics ; equiv-is-iso )
-open import System.IO.Transducers.Properties.Lemmas using ( ⟦⟧-resp-✓ ; ⟦⟧-resp-[] )
+open import System.IO.Transducers.Properties.Category using ( ⟦done⟧ ; _⟦⟫⟧_ ; ⟫-semantics ; equiv-resp-done ; equiv-resp-⟫ ; equiv-is-iso )
+open import System.IO.Transducers.Properties.Lemmas using ( ≃-refl ; ≃-sym ; ⟦⟧-resp-✓ ; ⟦⟧-resp-[] ; ⟦⟧-resp-∼ )
 
 module System.IO.Transducers.Properties.Monoidal where
 
@@ -18,7 +18,7 @@ open Relation.Binary.PropositionalEquality.≡-Reasoning
 -- & respects ∼
 
 &-resp-∼ : ∀ {S T U V} → (S ∼ T) → (U ∼ V) → ((S & U) ∼ (T & V))
-&-resp-∼ I U∼V = U∼V
+&-resp-∼ I       U∼V = U∼V
 &-resp-∼ (Σ V F) U∼V = Σ V (♯ λ a → &-resp-∼ (♭ F a) U∼V)
 
 -- Concatenation of traces
@@ -47,14 +47,13 @@ back {Σ V F} (a ∷ as) = back {♭ F a} as
   (Trace (S & T) → Trace U)
 ⟦delay⟧ S f as = f (back {S} as)
 
-delay-semantics : ∀ S {T U} (P : T ⇒ U) →
-  ⟦ delay S P ⟧ ≃ ⟦delay⟧ S ⟦ P ⟧
-delay-semantics I P as = refl
-delay-semantics (Σ W F) (inp P)   []       = refl
-delay-semantics (Σ W F) (inp P)   (a ∷ as) = delay-semantics (♭ F a) (inp P) as
-delay-semantics (Σ W F) (out b P) as       = cong (_∷_ b) (delay-semantics (Σ W F) P as)
-delay-semantics (Σ W F) (id refl) []       = refl
-delay-semantics (Σ W F) (id refl) (a ∷ as) = delay-semantics (♭ F a) (id refl) as
+delay-semantics : ∀ S {T U} → (P : T ⇒ U) → (⟦ delay S P ⟧ ≃ ⟦delay⟧ S ⟦ P ⟧)
+delay-semantics I       P         as       = refl
+delay-semantics (Σ V F) (inp P)   []       = refl
+delay-semantics (Σ V F) (inp P)   (a ∷ as) = delay-semantics (♭ F a) (inp P) as
+delay-semantics (Σ V F) (out b P) as       = cong (_∷_ b) (delay-semantics (Σ V F) P as)
+delay-semantics (Σ V F) (id refl) []       = refl
+delay-semantics (Σ V F) (id refl) (a ∷ as) = delay-semantics (♭ F a) done as
 
 -- Semantics of tensor
 
@@ -65,17 +64,16 @@ _⟦[&]⟧_ {S} f g as = f (front as) ++ g (back {S} as)
 
 [&]-semantics : ∀ {S T U V} (P : S ⇒ T) (Q : U ⇒ V) → 
   ⟦ P [&] Q ⟧ ≃ ⟦ P ⟧ ⟦[&]⟧ ⟦ Q ⟧
-[&]-semantics {S}     {I}     P          Q as with ⟦ P ⟧ (front as)
-[&]-semantics {S}     {I}     P          Q as | []  = delay-semantics S Q as
-[&]-semantics {S}     {I}     P          Q as | () ∷ bs
-[&]-semantics {I}     {Σ W G} (inp {} P) Q as
-[&]-semantics {Σ V F} {Σ W G} (inp P)    Q []       = refl
-[&]-semantics {Σ V F} {Σ W G} (inp P)    Q (a ∷ as) = [&]-semantics (♭ P a) Q as
-[&]-semantics {I}     {Σ W G} (out b P)  Q as       = cong (_∷_ b) ([&]-semantics P Q as)
-[&]-semantics {Σ V F} {Σ W G} (out b P)  Q as       = cong (_∷_ b) ([&]-semantics P Q as)
-[&]-semantics {I}     {Σ W G} (id ())    Q as
-[&]-semantics {Σ V F}         (id refl)  Q []       = refl
-[&]-semantics {Σ V F}         (id refl)  Q (a ∷ as) = cong (_∷_ a) ([&]-semantics (done {♭ F a}) Q as)
+[&]-semantics {S}      {I}     P          Q as with ⟦ P ⟧ (front {S} as)
+[&]-semantics {S}      {I}     P          Q as | []  = delay-semantics S Q as
+[&]-semantics {S}      {I}     P          Q as | () ∷ bs
+[&]-semantics {I}      {Σ W G} (inp {} P) Q as
+[&]-semantics {Σ V F}  {Σ W G} (inp P)    Q []       = refl
+[&]-semantics {Σ V F}  {Σ W G} (inp P)    Q (a ∷ as) = [&]-semantics (♭ P a) Q as
+[&]-semantics {I}      {Σ W G} (out b P)  Q as       = cong (_∷_ b) ([&]-semantics P Q as)
+[&]-semantics {Σ V F}  {Σ W G} (out b P)  Q as       = cong (_∷_ b) ([&]-semantics P Q as)
+[&]-semantics .{Σ W G} {Σ W G} (id refl)  Q []       = refl
+[&]-semantics .{Σ W G} {Σ W G} (id refl)  Q (a ∷ as) = cong (_∷_ a) ([&]-semantics (done {♭ G a}) Q as)
 
 -- Beta and eta equivalence for concatenation
 -- Note that β₂ only holds when as is completed or bs is empty.
@@ -112,12 +110,31 @@ front✓/back[] {Σ W F} (a ∷ as) with front✓/back[] {♭ F a} as
 front✓/back[] {Σ W F} (a ∷ as) | inj₁ bs✓   = inj₁ (a ∷ bs✓)
 front✓/back[] {Σ W F} (a ∷ as) | inj₂ cs≡[] = inj₂ cs≡[]
 
+-- Equivalence respects &
+
+equiv-resp-⟦[&]⟧ : ∀ {S T U V} (S∼T : S ∼ T) (U∼V : U ∼ V) →
+  ⟦ equiv (&-resp-∼ S∼T U∼V) ⟧ ≃ ⟦ equiv S∼T ⟧ ⟦[&]⟧ ⟦ equiv U∼V ⟧
+equiv-resp-⟦[&]⟧ I       U∼V as       = refl
+equiv-resp-⟦[&]⟧ (Σ V F) U∼V []       = refl
+equiv-resp-⟦[&]⟧ (Σ V F) U∼V (a ∷ as) = cong (_∷_ a) (equiv-resp-⟦[&]⟧ (♭ F a) U∼V as)
+
+equiv-resp-[&] : ∀ {S T U V} (S∼T : S ∼ T) (U∼V : U ∼ V) →
+  ⟦ equiv (&-resp-∼ S∼T U∼V) ⟧ ≃ ⟦ equiv S∼T [&] equiv U∼V ⟧
+equiv-resp-[&] S∼T U∼V as =
+  begin
+    ⟦ equiv (&-resp-∼ S∼T U∼V) ⟧ as
+  ≡⟨ equiv-resp-⟦[&]⟧ S∼T U∼V as ⟩
+    (⟦ equiv S∼T ⟧ ⟦[&]⟧ ⟦ equiv U∼V ⟧) as
+  ≡⟨ sym ([&]-semantics (equiv S∼T) (equiv U∼V) as) ⟩
+    ⟦ equiv S∼T [&] equiv U∼V ⟧ as
+  ∎
+
 -- Tensor respects ≃
 
-[&]-resp-≃ : ∀ {S T U} (P₁ P₂ : S ⇒ T) (Q₁ Q₂ : T ⇒ U) → 
+[&]-resp-≃ : ∀ {S T U V} {P₁ P₂ : S ⇒ T} {Q₁ Q₂ : U ⇒ V} → 
   (⟦ P₁ ⟧ ≃ ⟦ P₂ ⟧) → (⟦ Q₁ ⟧ ≃ ⟦ Q₂ ⟧) →
     (⟦ P₁ [&] Q₁ ⟧ ≃ ⟦ P₂ [&] Q₂ ⟧)
-[&]-resp-≃ {S} P₁ P₂ Q₁ Q₂ P₁≃P₂ Q₁≃Q₂ as =
+[&]-resp-≃ {S} {T} {U} {V} {P₁} {P₂} {Q₁} {Q₂} P₁≃P₂ Q₁≃Q₂ as =
   begin
     ⟦ P₁ [&] Q₁ ⟧ as
   ≡⟨ [&]-semantics P₁ Q₁ as ⟩
@@ -264,4 +281,18 @@ assoc-iso {S} {T} = equiv-is-iso (∼-assoc {S} {T}) (∼-sym (∼-assoc {S} {T}
 assoc⁻¹-iso : ∀ {S T U} → ⟦ assoc⁻¹ {S} {T} {U} ⟫ assoc {S} {T} {U} ⟧ ≃ ⟦ done ⟧
 assoc⁻¹-iso {S} = equiv-is-iso (∼-sym (∼-assoc {S})) (∼-assoc {S})
 
--- TODO: Add coherence conditions
+-- Coherence conditions
+
+assoc-unit₂ : ∀ {S T} → ⟦ done {S} [&] unit₂ {T} ⟧ ≃ ⟦ assoc {S} {T} {I} ⟫ unit₂ {S & T} ⟧
+assoc-unit₂ {S} {T} as = 
+  begin
+    ⟦ done {S} [&] unit₂ {T} ⟧ as
+  ≡⟨ [&]-resp-≃ {P₁ = done {S}} (≃-sym (equiv-resp-done)) ≃-refl as ⟩
+    (⟦ equiv (∼-refl {S}) [&] unit₂ {T} ⟧) as
+  ≡⟨ sym (equiv-resp-[&] (∼-refl {S}) (∼-unit₂ {T}) as) ⟩
+    (⟦ equiv (&-resp-∼ (∼-refl {S}) (∼-unit₂ {T})) ⟧) as
+  ≡⟨ ⟦⟧-resp-∼ (&-resp-∼ (∼-refl {S}) (∼-unit₂ {T})) (∼-trans (∼-assoc {S}) (∼-unit₂ {S & T})) as ⟩
+    (⟦ equiv (∼-trans (∼-assoc {S}) (∼-unit₂ {S & T})) ⟧) as
+  ≡⟨ equiv-resp-⟫ (∼-assoc {S}) ∼-unit₂ as ⟩
+    ⟦ assoc {S} ⟫ unit₂ {S & T} ⟧ as
+  ∎ 

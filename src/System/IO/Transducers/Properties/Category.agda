@@ -39,18 +39,29 @@ _⟦⟫⟧_ : ∀ {S T U} →
 
 -- Reflexivity is equal to identity
 
-equiv-resp-refl : ∀ {S} → ⟦ equiv (∼-refl {S}) ⟧ ≃ ⟦done⟧
-equiv-resp-refl {I}     as = refl
-equiv-resp-refl {Σ V F} [] = refl
-equiv-resp-refl {Σ V F} (a ∷ as) = cong (_∷_ a) (equiv-resp-refl as)
+equiv-resp-done : ∀ {S} → ⟦ equiv (∼-refl {S}) ⟧ ≃ ⟦ done ⟧
+equiv-resp-done {I}     as = refl
+equiv-resp-done {Σ V F} [] = refl
+equiv-resp-done {Σ V F} (a ∷ as) = cong (_∷_ a) (equiv-resp-done as)
 
 -- Transitivity is equal to composition
 
-equiv-resp-trans : ∀ {S T U} (S∼T : S ∼ T) (T∼U : T ∼ U) →
+equiv-resp-⟦⟫⟧ : ∀ {S T U} (S∼T : S ∼ T) (T∼U : T ∼ U) →
   ⟦ equiv (∼-trans S∼T T∼U) ⟧ ≃ ⟦ equiv S∼T ⟧ ⟦⟫⟧ ⟦ equiv T∼U ⟧
-equiv-resp-trans I       I        as       = refl
-equiv-resp-trans (Σ W F) (Σ .W G) []       = refl
-equiv-resp-trans (Σ W F) (Σ .W G) (a ∷ as) = cong (_∷_ a) (equiv-resp-trans (♭ F a) (♭ G a) as)
+equiv-resp-⟦⟫⟧ I       I        as       = refl
+equiv-resp-⟦⟫⟧ (Σ W F) (Σ .W G) []       = refl
+equiv-resp-⟦⟫⟧ (Σ W F) (Σ .W G) (a ∷ as) = cong (_∷_ a) (equiv-resp-⟦⟫⟧ (♭ F a) (♭ G a) as)
+
+equiv-resp-⟫ : ∀ {S T U} (S∼T : S ∼ T) (T∼U : T ∼ U) →
+  ⟦ equiv (∼-trans S∼T T∼U) ⟧ ≃ ⟦ equiv S∼T ⟫ equiv T∼U ⟧
+equiv-resp-⟫ S∼T T∼U as =
+  begin
+    ⟦ equiv (∼-trans S∼T T∼U) ⟧ as
+  ≡⟨ equiv-resp-⟦⟫⟧ S∼T T∼U as ⟩
+    (⟦ equiv S∼T ⟧ ⟦⟫⟧ ⟦ equiv T∼U ⟧) as
+  ≡⟨ sym (⟫-semantics (equiv S∼T) (equiv T∼U) as) ⟩
+    ⟦ equiv S∼T ⟫ equiv T∼U ⟧ as
+  ∎
 
 -- Equivalences form isos
 
@@ -59,12 +70,12 @@ equiv-is-iso : ∀ {S T} → (S∼T : S ∼ T) → (T∼S : T ∼ S) →
 equiv-is-iso S∼T T∼S as =
   begin
     ⟦ equiv S∼T ⟫ equiv T∼S ⟧ as
-  ≡⟨ ⟫-semantics (equiv S∼T) (equiv T∼S) as ⟩
-    ⟦ equiv T∼S ⟧ (⟦ equiv S∼T ⟧ as)
-  ≡⟨ sym (equiv-resp-trans S∼T T∼S as) ⟩
+  ≡⟨ sym (equiv-resp-⟫ S∼T T∼S as) ⟩
     ⟦ equiv (∼-trans S∼T T∼S) ⟧ as
-  ≡⟨ ⟦⟧-resp-∼ (∼-trans S∼T T∼S) as ⟩
-    as
+  ≡⟨ ⟦⟧-resp-∼ (∼-trans S∼T T∼S) ∼-refl as ⟩
+    ⟦ equiv ∼-refl ⟧ as
+  ≡⟨ equiv-resp-done as ⟩
+    ⟦ done ⟧ as
   ∎
 
 -- Composition respects ≃

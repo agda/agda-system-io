@@ -5,13 +5,22 @@ open import System.IO.Transducers.Session using ( I ; Σ ; _∼_ )
 open import System.IO.Transducers.Trace using ( Trace ; [] ; _∷_ ; ✓ )
 open import System.IO.Transducers.Lazy using ( _⇒_ ; inp ; out ; id ; ⟦_⟧ ; _≃_ ; equiv )
 open import System.IO.Transducers.Strict using ( Strict ; inp ; id )
-open import Relation.Binary.PropositionalEquality using ( _≡_ ; refl ; cong )
+open import Relation.Binary.PropositionalEquality using ( _≡_ ; refl ; sym ; trans ; cong )
 
 module System.IO.Transducers.Properties.Lemmas where
 
-cong₃ : ∀ {a b c d} {A : Set a} {B : Set b} {C : Set c} {D : Set d}
-        (f : A → B → C → D) {x y u v r s} → x ≡ y → u ≡ v → r ≡ s → f x u r ≡ f y v s
-cong₃ f refl refl refl = refl
+-- ≃ is an equivalence
+
+≃-refl : ∀ {S T} {f : Trace S → Trace T} → (f ≃ f)
+≃-refl as = refl
+
+≃-sym : ∀ {S T} {f g : Trace S → Trace T} →
+  (f ≃ g) → (g ≃ f)
+≃-sym f≃g as = sym (f≃g as)
+
+≃-trans : ∀ {S T} {f g h : Trace S → Trace T} →
+  (f ≃ g) → (g ≃ h) → (f ≃ h)
+≃-trans f≃g g≃h as = trans (f≃g as) (g≃h as)
 
 -- All transducers respect completed traces
 
@@ -38,7 +47,7 @@ cong₃ f refl refl refl = refl
 
 -- Coherence wrt ∼
 
-⟦⟧-resp-∼ : ∀ {S} (eq : S ∼ S) as → ⟦ equiv eq ⟧ as ≡ as
-⟦⟧-resp-∼ I       as       = refl
-⟦⟧-resp-∼ (Σ V F) []       = refl
-⟦⟧-resp-∼ (Σ V F) (a ∷ as) = cong (_∷_ a) (⟦⟧-resp-∼ (♭ F a) as)
+⟦⟧-resp-∼ : ∀ {S T} (eq₁ eq₂ : S ∼ T) → ⟦ equiv eq₁ ⟧ ≃ ⟦ equiv eq₂ ⟧ 
+⟦⟧-resp-∼ I       I        as       = refl
+⟦⟧-resp-∼ (Σ V F) (Σ .V G) []       = refl
+⟦⟧-resp-∼ (Σ V F) (Σ .V G) (a ∷ as) = cong (_∷_ a) (⟦⟧-resp-∼ (♭ F a) (♭ G a) as)

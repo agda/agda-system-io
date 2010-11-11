@@ -92,19 +92,18 @@ _⟫_ {Σ V F} (inp P)    Q         = inp (♯ λ a → ♭ P a ⟫ Q)
 
 delay : ∀ S {T U} → (T ⇒ U) → (S & T) ⇒ U
 delay I       P         = P
-delay S       (out b P) = out b (delay S P)
+delay (Σ V F) (out b P) = out b (delay (Σ V F) P)
 delay (Σ V F) P         = inp (♯ λ a → delay (♭ F a) P)
 
 -- The category has monoidal structure given by &, with
 -- action on morphisms:
  
 _[&]_ : ∀ {S T U V} → (S ⇒ T) → (U ⇒ V) → ((S & U) ⇒ (T & V))
-_[&]_ {S}     {I}     P          Q = delay S Q
-_[&]_ {I}     {T}     (inp {} P) Q
-_[&]_ {Σ V F} {Σ W G} (inp P)    Q = inp (♯ λ a → ♭ P a [&] Q)
-_[&]_ {S}     {Σ W G} (out b P)  Q = out b (P [&] Q)
-_[&]_ {I}     {Σ W G} (id ())    Q
-_[&]_ {Σ V F}         (id refl)  Q = inp (♯ λ a → out a (done {♭ F a} [&] Q))
+_[&]_ {S}      {I}     P          Q = delay S Q
+_[&]_ {I}      {Σ W G} (inp {} P) Q
+_[&]_ {Σ V F}  {Σ W G} (inp P)    Q = inp (♯ λ a → ♭ P a [&] Q)
+_[&]_ {S}      {Σ W G} (out b P)  Q = out b (P [&] Q)
+_[&]_ .{Σ W G} {Σ W G} (id refl)  Q = inp (♯ λ a → out a (done {♭ G a} [&] Q))
 
 -- Units for &
 
@@ -128,11 +127,13 @@ assoc {S} = equiv (∼-assoc {S})
 assoc⁻¹ : ∀ {S T U} → ((S & T) & U) ⇒ (S & (T & U))
 assoc⁻¹ {S} = equiv (∼-sym (∼-assoc {S}))
 
--- The projection morphisms for [] and &:
+-- Discard all input
 
 discard : ∀ {S} → (S ⇒ I)
 discard {I}     = done
-discard {Σ W F} = inp (♯ λ a → discard)
+discard {Σ V F} = inp (♯ λ a → discard)
+
+-- The projection morphisms for [] and &:
 
 π₁ : ∀ {S T} → ((S & T) ⇒ S)
 π₁ {I}     = discard
