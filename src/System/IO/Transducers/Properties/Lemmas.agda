@@ -1,13 +1,15 @@
 {-# OPTIONS --universe-polymorphism #-}
 
 open import Coinduction using ( ♭ )
-open import System.IO.Transducers.Session using ( I ; Σ ; _∼_ )
+open import System.IO.Transducers.Session using ( Session ; I ; Σ ; _∼_ )
 open import System.IO.Transducers.Trace using ( Trace ; [] ; _∷_ ; ✓ )
 open import System.IO.Transducers.Lazy using ( _⇒_ ; inp ; out ; id ; ⟦_⟧ ; _≃_ ; equiv )
 open import System.IO.Transducers.Strict using ( Strict ; inp ; id )
 open import Relation.Binary.PropositionalEquality using ( _≡_ ; refl ; sym ; trans ; cong )
 
 module System.IO.Transducers.Properties.Lemmas where
+
+open Relation.Binary.PropositionalEquality.≡-Reasoning
 
 -- ≃ is an equivalence
 
@@ -51,3 +53,23 @@ module System.IO.Transducers.Properties.Lemmas where
 ⟦⟧-resp-∼ I       I        as       = refl
 ⟦⟧-resp-∼ (Σ V F) (Σ .V G) []       = refl
 ⟦⟧-resp-∼ (Σ V F) (Σ .V G) (a ∷ as) = cong (_∷_ a) (⟦⟧-resp-∼ (♭ F a) (♭ G a) as)
+
+-- IsEquiv P is inhabited whenever P is equivalent to an equivalence
+
+data IsEquiv {S T : Session} (P : S ⇒ T) : Set₁ where
+  isEquiv : (S∼T : S ∼ T) → (⟦ P ⟧ ≃ ⟦ equiv S∼T ⟧) → (IsEquiv P)
+
+-- Equivalences are equivalent
+
+≃-equiv : ∀ {S T} {P Q : S ⇒ T} → (IsEquiv P) → (IsEquiv Q) → (⟦ P ⟧ ≃ ⟦ Q ⟧)
+≃-equiv {S} {T} {P} {Q} (isEquiv eq₁ P≃eq₁) (isEquiv eq₂ Q≃eq₂) as =
+  begin
+    ⟦ P ⟧ as
+  ≡⟨ P≃eq₁ as ⟩
+    ⟦ equiv eq₁ ⟧ as
+  ≡⟨ ⟦⟧-resp-∼ eq₁ eq₂ as ⟩
+    ⟦ equiv eq₂ ⟧ as
+  ≡⟨ sym (Q≃eq₂ as) ⟩
+    ⟦ Q ⟧ as
+  ∎
+  

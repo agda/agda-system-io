@@ -8,8 +8,8 @@ open import System.IO.Transducers.Strict using ( Strict )
 open import System.IO.Transducers.Session using ( I ; Σ ; _∼_ ; ∼-refl ; ∼-trans ; ∼-sym ; _&_ )
   renaming ( unit₁ to ∼-unit₁ ; unit₂ to ∼-unit₂ ; assoc to ∼-assoc )
 open import System.IO.Transducers.Trace using ( Trace ; ✓ ; [] ; _∷_ )
-open import System.IO.Transducers.Properties.Category using ( ⟦done⟧ ; _⟦⟫⟧_ ; ⟫-semantics ; equiv-resp-done ; equiv-resp-⟫ ; equiv-is-iso )
-open import System.IO.Transducers.Properties.Lemmas using ( ≃-refl ; ≃-sym ; ⟦⟧-resp-✓ ; ⟦⟧-resp-[] ; ⟦⟧-resp-∼ )
+open import System.IO.Transducers.Properties.Category using ( ⟦done⟧ ; _⟦⟫⟧_ ; ⟫-semantics ; ⟫-resp-≃ ; done-isEquiv ; ⟫-isEquiv ; equiv-is-iso )
+open import System.IO.Transducers.Properties.Lemmas using ( ≃-refl ; ≃-sym ; ⟦⟧-resp-✓ ; ⟦⟧-resp-[] ; ⟦⟧-resp-∼ ; IsEquiv ; isEquiv ; ≃-equiv )
 
 module System.IO.Transducers.Properties.Monoidal where
 
@@ -109,25 +109,6 @@ front✓/back[] {Σ W F} []                    = inj₂ refl
 front✓/back[] {Σ W F} (a ∷ as) with front✓/back[] {♭ F a} as
 front✓/back[] {Σ W F} (a ∷ as) | inj₁ bs✓   = inj₁ (a ∷ bs✓)
 front✓/back[] {Σ W F} (a ∷ as) | inj₂ cs≡[] = inj₂ cs≡[]
-
--- Equivalence respects &
-
-equiv-resp-⟦[&]⟧ : ∀ {S T U V} (S∼T : S ∼ T) (U∼V : U ∼ V) →
-  ⟦ equiv (&-resp-∼ S∼T U∼V) ⟧ ≃ ⟦ equiv S∼T ⟧ ⟦[&]⟧ ⟦ equiv U∼V ⟧
-equiv-resp-⟦[&]⟧ I       U∼V as       = refl
-equiv-resp-⟦[&]⟧ (Σ V F) U∼V []       = refl
-equiv-resp-⟦[&]⟧ (Σ V F) U∼V (a ∷ as) = cong (_∷_ a) (equiv-resp-⟦[&]⟧ (♭ F a) U∼V as)
-
-equiv-resp-[&] : ∀ {S T U V} (S∼T : S ∼ T) (U∼V : U ∼ V) →
-  ⟦ equiv (&-resp-∼ S∼T U∼V) ⟧ ≃ ⟦ equiv S∼T [&] equiv U∼V ⟧
-equiv-resp-[&] S∼T U∼V as =
-  begin
-    ⟦ equiv (&-resp-∼ S∼T U∼V) ⟧ as
-  ≡⟨ equiv-resp-⟦[&]⟧ S∼T U∼V as ⟩
-    (⟦ equiv S∼T ⟧ ⟦[&]⟧ ⟦ equiv U∼V ⟧) as
-  ≡⟨ sym ([&]-semantics (equiv S∼T) (equiv U∼V) as) ⟩
-    ⟦ equiv S∼T [&] equiv U∼V ⟧ as
-  ∎
 
 -- Tensor respects ≃
 
@@ -261,38 +242,99 @@ equiv-resp-[&] S∼T U∼V as =
     ⟦ P₁ [&] P₂ ⟫ Q₁ [&] Q₂ ⟧ as
   ∎
 
+-- Units and associator are equivalences
+
+unit₁-isEquiv : ∀ {S} → IsEquiv (unit₁ {S})
+unit₁-isEquiv = isEquiv ∼-unit₁ ≃-refl
+
+unit₂-isEquiv : ∀ {S} → IsEquiv (unit₂ {S})
+unit₂-isEquiv {S} = isEquiv (∼-unit₂ {S}) ≃-refl
+
+assoc-isEquiv : ∀ {S T U} → IsEquiv (assoc {S} {T} {U})
+assoc-isEquiv {S} {T} = isEquiv (∼-assoc {S} {T}) ≃-refl
+
+unit₁⁻¹-isEquiv : ∀ {S} → IsEquiv (unit₁⁻¹ {S})
+unit₁⁻¹-isEquiv = isEquiv (∼-sym ∼-unit₁) ≃-refl
+
+unit₂⁻¹-isEquiv : ∀ {S} → IsEquiv (unit₂⁻¹ {S})
+unit₂⁻¹-isEquiv = isEquiv (∼-sym ∼-unit₂) ≃-refl
+
+assoc⁻¹-isEquiv : ∀ {S T U} → IsEquiv (assoc⁻¹ {S} {T} {U})
+assoc⁻¹-isEquiv {S} = isEquiv (∼-sym (∼-assoc {S})) ≃-refl
+
+-- Equivalence respects &
+
+equiv-resp-⟦[&]⟧ : ∀ {S T U V} (S∼T : S ∼ T) (U∼V : U ∼ V) →
+  ⟦ equiv S∼T ⟧ ⟦[&]⟧ ⟦ equiv U∼V ⟧ ≃ ⟦ equiv (&-resp-∼ S∼T U∼V) ⟧
+equiv-resp-⟦[&]⟧ I       U∼V as       = refl
+equiv-resp-⟦[&]⟧ (Σ V F) U∼V []       = refl
+equiv-resp-⟦[&]⟧ (Σ V F) U∼V (a ∷ as) = cong (_∷_ a) (equiv-resp-⟦[&]⟧ (♭ F a) U∼V as)
+
+equiv-resp-[&] : ∀ {S T U V} (S∼T : S ∼ T) (U∼V : U ∼ V) →
+  ⟦ equiv S∼T [&] equiv U∼V ⟧ ≃ ⟦ equiv (&-resp-∼ S∼T U∼V) ⟧
+equiv-resp-[&] S∼T U∼V as =
+  begin
+    ⟦ equiv S∼T [&] equiv U∼V ⟧ as
+  ≡⟨ [&]-semantics (equiv S∼T) (equiv U∼V) as ⟩
+    (⟦ equiv S∼T ⟧ ⟦[&]⟧ ⟦ equiv U∼V ⟧) as
+  ≡⟨ equiv-resp-⟦[&]⟧ S∼T U∼V as ⟩
+    ⟦ equiv (&-resp-∼ S∼T U∼V) ⟧ as
+  ∎
+
+[&]-isEquiv : ∀ {S T U V} {P : S ⇒ T} {Q : U ⇒ V} →
+  (IsEquiv P) → (IsEquiv Q) → (IsEquiv (P [&] Q))
+[&]-isEquiv {S} {T} {U} {V} {P} {Q} (isEquiv S∼T P≃S∼T) (isEquiv U∼V Q≃U∼V) =
+  isEquiv (&-resp-∼ S∼T U∼V) λ as →
+    begin
+      ⟦ P [&] Q ⟧ as
+    ≡⟨ [&]-resp-≃ P≃S∼T Q≃U∼V as ⟩
+      ⟦ equiv S∼T [&] equiv U∼V ⟧ as
+    ≡⟨ equiv-resp-[&] S∼T U∼V as ⟩
+      ⟦ equiv (&-resp-∼ S∼T U∼V) ⟧ as
+    ∎
+
 -- Isomorphisms
 
 unit₁-iso : ∀ {S} → ⟦ unit₁ {S} ⟫ unit₁⁻¹ {S} ⟧ ≃ ⟦ done ⟧
-unit₁-iso = equiv-is-iso ∼-unit₁ (∼-sym ∼-unit₁)
+unit₁-iso = equiv-is-iso unit₁-isEquiv unit₁⁻¹-isEquiv
 
 unit₁⁻¹-iso : ∀ {S} → ⟦ unit₁⁻¹ {S} ⟫ unit₁ {S} ⟧ ≃ ⟦ done ⟧
-unit₁⁻¹-iso = equiv-is-iso (∼-sym ∼-unit₁) ∼-unit₁
+unit₁⁻¹-iso = equiv-is-iso unit₁⁻¹-isEquiv unit₁-isEquiv
 
 unit₂-iso : ∀ {S} → ⟦ unit₂ {S} ⟫ unit₂⁻¹ {S} ⟧ ≃ ⟦ done ⟧
-unit₂-iso {S} = equiv-is-iso (∼-unit₂ {S}) (∼-sym (∼-unit₂ {S}))
+unit₂-iso {S} = equiv-is-iso (unit₂-isEquiv {S}) unit₂⁻¹-isEquiv
 
 unit₂⁻¹-iso : ∀ {S} → ⟦ unit₂⁻¹ {S} ⟫ unit₂ {S} ⟧ ≃ ⟦ done ⟧
-unit₂⁻¹-iso {S} = equiv-is-iso (∼-sym (∼-unit₂ {S})) (∼-unit₂ {S})
+unit₂⁻¹-iso {S} = equiv-is-iso unit₂⁻¹-isEquiv (unit₂-isEquiv {S})
 
 assoc-iso : ∀ {S T U} → ⟦ assoc {S} {T} {U} ⟫ assoc⁻¹ {S} {T} {U} ⟧ ≃ ⟦ done ⟧
-assoc-iso {S} {T} = equiv-is-iso (∼-assoc {S} {T}) (∼-sym (∼-assoc {S} {T}))
+assoc-iso {S} {T} = equiv-is-iso (assoc-isEquiv {S} {T}) (assoc⁻¹-isEquiv {S} {T})
 
 assoc⁻¹-iso : ∀ {S T U} → ⟦ assoc⁻¹ {S} {T} {U} ⟫ assoc {S} {T} {U} ⟧ ≃ ⟦ done ⟧
-assoc⁻¹-iso {S} = equiv-is-iso (∼-sym (∼-assoc {S})) (∼-assoc {S})
+assoc⁻¹-iso {S} {T} = equiv-is-iso (assoc⁻¹-isEquiv {S} {T}) (assoc-isEquiv {S} {T})
 
 -- Coherence conditions
 
-assoc-unit₂ : ∀ {S T} → ⟦ done {S} [&] unit₂ {T} ⟧ ≃ ⟦ assoc {S} {T} {I} ⟫ unit₂ {S & T} ⟧
-assoc-unit₂ {S} {T} as = 
-  begin
-    ⟦ done {S} [&] unit₂ {T} ⟧ as
-  ≡⟨ [&]-resp-≃ {P₁ = done {S}} (≃-sym (equiv-resp-done)) ≃-refl as ⟩
-    (⟦ equiv (∼-refl {S}) [&] unit₂ {T} ⟧) as
-  ≡⟨ sym (equiv-resp-[&] (∼-refl {S}) (∼-unit₂ {T}) as) ⟩
-    (⟦ equiv (&-resp-∼ (∼-refl {S}) (∼-unit₂ {T})) ⟧) as
-  ≡⟨ ⟦⟧-resp-∼ (&-resp-∼ (∼-refl {S}) (∼-unit₂ {T})) (∼-trans (∼-assoc {S}) (∼-unit₂ {S & T})) as ⟩
-    (⟦ equiv (∼-trans (∼-assoc {S}) (∼-unit₂ {S & T})) ⟧) as
-  ≡⟨ equiv-resp-⟫ (∼-assoc {S}) ∼-unit₂ as ⟩
-    ⟦ assoc {S} ⟫ unit₂ {S & T} ⟧ as
-  ∎ 
+assoc-unit₁ : ∀ {S T} →
+  ⟦ unit₁ {S} [&] done {T} ⟧ ≃ ⟦ assoc⁻¹ {I} {S} {T} ⟫ unit₁ {S & T} ⟧
+assoc-unit₁ {S} {T} = 
+  ≃-equiv ([&]-isEquiv (unit₁-isEquiv {S}) (done-isEquiv {T})) 
+    (⟫-isEquiv (assoc⁻¹-isEquiv {I} {S} {T}) unit₁-isEquiv)
+
+assoc-unit₂ : ∀ {S T} →
+  ⟦ done {S} [&] unit₂ {T} ⟧ ≃ ⟦ assoc {S} {T} {I} ⟫ unit₂ {S & T} ⟧
+assoc-unit₂ {S} {T} = 
+  ≃-equiv ([&]-isEquiv (done-isEquiv {S}) (unit₂-isEquiv {T})) 
+    (⟫-isEquiv (assoc-isEquiv {S} {T} {I}) (unit₂-isEquiv {S & T}))
+
+assoc-assoc : ∀ {S T U V} → 
+  ⟦ done {S} [&] assoc {T} {U} {V} ⟫ 
+      assoc {S} {T & U} {V} ⟫ 
+        assoc {S} {T} {U} [&] done {V} ⟧ ≃
+  ⟦ assoc {S} {T} {U & V} ⟫ assoc {S & T} {U} {V} ⟧
+assoc-assoc {S} {T} {U} {V} = 
+  ≃-equiv 
+    (⟫-isEquiv ([&]-isEquiv (done-isEquiv {S}) (assoc-isEquiv {T} {U} {V})) 
+      (⟫-isEquiv (assoc-isEquiv {S} {T & U} {V}) 
+        ([&]-isEquiv (assoc-isEquiv {S} {T} {U}) done-isEquiv))) 
+    (⟫-isEquiv (assoc-isEquiv {S} {T} {U & V}) (assoc-isEquiv {S & T} {U} {V}))

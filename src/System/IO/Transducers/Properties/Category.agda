@@ -3,7 +3,7 @@ open import Relation.Binary.PropositionalEquality using ( _≡_ ; refl ; sym ; c
 open import System.IO.Transducers.Lazy using ( _⇒_ ; inp ; out ; id ; done ; _⟫_ ; ⟦_⟧ ; _≃_ ; equiv )
 open import System.IO.Transducers.Session using ( Session ; I ; Σ ; _∼_ ; ∼-refl ; ∼-trans )
 open import System.IO.Transducers.Trace using ( Trace ; [] ; _∷_ )
-open import System.IO.Transducers.Properties.Lemmas using ( ⟦⟧-resp-∼ )
+open import System.IO.Transducers.Properties.Lemmas using ( ⟦⟧-resp-∼ ; ≃-sym ; IsEquiv ; isEquiv ; ≃-equiv )
 
 module System.IO.Transducers.Properties.Category where
 
@@ -27,7 +27,7 @@ _⟦⟫⟧_ : ∀ {S T U} →
 ⟫-semantics : ∀ {S T U} (P : S ⇒ T) (Q : T ⇒ U) →
     (⟦ P ⟫ Q ⟧ ≃ ⟦ P ⟧ ⟦⟫⟧ ⟦ Q ⟧)
 ⟫-semantics                 (id refl)  Q          as       = refl
-⟫-semantics                  (inp P)    (id refl)  as       = refl
+⟫-semantics                 (inp P)    (id refl)  as       = refl
 ⟫-semantics                 (out b P)  (id refl)  as       = refl
 ⟫-semantics                 (inp P)    (out c Q)  as       = cong (_∷_ c) (⟫-semantics (inp P) Q as)
 ⟫-semantics                 (out b P)  (out c Q)  as       = cong (_∷_ c) (⟫-semantics (out b P) Q as)
@@ -37,53 +37,12 @@ _⟦⟫⟧_ : ∀ {S T U} →
 ⟫-semantics {I}     {T}     (inp {} P) (inp Q)    as
 ⟫-semantics {S}     {I}     (inp P)    (inp {} Q) as
 
--- Reflexivity is equal to identity
-
-equiv-resp-done : ∀ {S} → ⟦ equiv (∼-refl {S}) ⟧ ≃ ⟦ done ⟧
-equiv-resp-done {I}     as = refl
-equiv-resp-done {Σ V F} [] = refl
-equiv-resp-done {Σ V F} (a ∷ as) = cong (_∷_ a) (equiv-resp-done as)
-
--- Transitivity is equal to composition
-
-equiv-resp-⟦⟫⟧ : ∀ {S T U} (S∼T : S ∼ T) (T∼U : T ∼ U) →
-  ⟦ equiv (∼-trans S∼T T∼U) ⟧ ≃ ⟦ equiv S∼T ⟧ ⟦⟫⟧ ⟦ equiv T∼U ⟧
-equiv-resp-⟦⟫⟧ I       I        as       = refl
-equiv-resp-⟦⟫⟧ (Σ W F) (Σ .W G) []       = refl
-equiv-resp-⟦⟫⟧ (Σ W F) (Σ .W G) (a ∷ as) = cong (_∷_ a) (equiv-resp-⟦⟫⟧ (♭ F a) (♭ G a) as)
-
-equiv-resp-⟫ : ∀ {S T U} (S∼T : S ∼ T) (T∼U : T ∼ U) →
-  ⟦ equiv (∼-trans S∼T T∼U) ⟧ ≃ ⟦ equiv S∼T ⟫ equiv T∼U ⟧
-equiv-resp-⟫ S∼T T∼U as =
-  begin
-    ⟦ equiv (∼-trans S∼T T∼U) ⟧ as
-  ≡⟨ equiv-resp-⟦⟫⟧ S∼T T∼U as ⟩
-    (⟦ equiv S∼T ⟧ ⟦⟫⟧ ⟦ equiv T∼U ⟧) as
-  ≡⟨ sym (⟫-semantics (equiv S∼T) (equiv T∼U) as) ⟩
-    ⟦ equiv S∼T ⟫ equiv T∼U ⟧ as
-  ∎
-
--- Equivalences form isos
-
-equiv-is-iso : ∀ {S T} → (S∼T : S ∼ T) → (T∼S : T ∼ S) →
-  ⟦ equiv S∼T ⟫ equiv T∼S ⟧ ≃ ⟦ done ⟧
-equiv-is-iso S∼T T∼S as =
-  begin
-    ⟦ equiv S∼T ⟫ equiv T∼S ⟧ as
-  ≡⟨ sym (equiv-resp-⟫ S∼T T∼S as) ⟩
-    ⟦ equiv (∼-trans S∼T T∼S) ⟧ as
-  ≡⟨ ⟦⟧-resp-∼ (∼-trans S∼T T∼S) ∼-refl as ⟩
-    ⟦ equiv ∼-refl ⟧ as
-  ≡⟨ equiv-resp-done as ⟩
-    ⟦ done ⟧ as
-  ∎
-
 -- Composition respects ≃
 
-⟫-resp-≃ : ∀ {S T U} (P₁ P₂ : S ⇒ T) (Q₁ Q₂ : T ⇒ U) → 
+⟫-resp-≃ : ∀ {S T U} {P₁ P₂ : S ⇒ T} {Q₁ Q₂ : T ⇒ U} → 
   (⟦ P₁ ⟧ ≃ ⟦ P₂ ⟧) → (⟦ Q₁ ⟧ ≃ ⟦ Q₂ ⟧) →
     (⟦ P₁ ⟫ Q₁ ⟧ ≃ ⟦ P₂ ⟫ Q₂ ⟧)
-⟫-resp-≃ P₁ P₂ Q₁ Q₂ P₁≃P₂ Q₁≃Q₂ as =
+⟫-resp-≃ {S} {T} {U} {P₁} {P₂} {Q₁} {Q₂} P₁≃P₂ Q₁≃Q₂ as =
   begin
     ⟦ P₁ ⟫ Q₁ ⟧ as
   ≡⟨ ⟫-semantics P₁ Q₁ as ⟩
@@ -122,3 +81,51 @@ equiv-is-iso S∼T T∼S as =
   ≡⟨ sym (⟫-semantics P (Q ⟫ R) as) ⟩
     ⟦ P ⟫ (Q ⟫ R) ⟧ as
   ∎
+
+-- Identity is an equivalence
+
+equiv-resp-done : ∀ {S} → ⟦ done ⟧ ≃ ⟦ equiv (∼-refl {S}) ⟧
+equiv-resp-done {I}     as = refl
+equiv-resp-done {Σ V F} [] = refl
+equiv-resp-done {Σ V F} (a ∷ as) = cong (_∷_ a) (equiv-resp-done as)
+
+done-isEquiv : ∀ {S} → IsEquiv (done {S})
+done-isEquiv = isEquiv {P = done} ∼-refl equiv-resp-done
+
+-- Composition respects being an equivalence
+
+equiv-resp-⟦⟫⟧ : ∀ {S T U} (S∼T : S ∼ T) (T∼U : T ∼ U) →
+  ⟦ equiv S∼T ⟧ ⟦⟫⟧ ⟦ equiv T∼U ⟧ ≃ ⟦ equiv (∼-trans S∼T T∼U) ⟧
+equiv-resp-⟦⟫⟧ I       I        as       = refl
+equiv-resp-⟦⟫⟧ (Σ W F) (Σ .W G) []       = refl
+equiv-resp-⟦⟫⟧ (Σ W F) (Σ .W G) (a ∷ as) = cong (_∷_ a) (equiv-resp-⟦⟫⟧ (♭ F a) (♭ G a) as)
+
+equiv-resp-⟫ : ∀ {S T U} (S∼T : S ∼ T) (T∼U : T ∼ U) →
+  ⟦ equiv S∼T ⟫ equiv T∼U ⟧ ≃ ⟦ equiv (∼-trans S∼T T∼U) ⟧
+equiv-resp-⟫ S∼T T∼U as =
+  begin
+    ⟦ equiv S∼T ⟫ equiv T∼U ⟧ as
+  ≡⟨ ⟫-semantics (equiv S∼T) (equiv T∼U) as ⟩
+    (⟦ equiv S∼T ⟧ ⟦⟫⟧ ⟦ equiv T∼U ⟧) as
+  ≡⟨ equiv-resp-⟦⟫⟧ S∼T T∼U as ⟩
+    ⟦ equiv (∼-trans S∼T T∼U) ⟧ as
+  ∎
+
+⟫-isEquiv : ∀ {S T U} {P : S ⇒ T} {Q : T ⇒ U} →
+  (IsEquiv P) → (IsEquiv Q) → (IsEquiv (P ⟫ Q))
+⟫-isEquiv {S} {T} {U} {P} {Q} (isEquiv S∼T P≃S∼T) (isEquiv (T∼U) (Q≃T∼U)) =
+  isEquiv (∼-trans S∼T T∼U) λ as →
+    begin
+      ⟦ P ⟫ Q ⟧ as
+    ≡⟨ ⟫-resp-≃ P≃S∼T Q≃T∼U as ⟩
+      ⟦ equiv S∼T ⟫ equiv T∼U ⟧ as
+    ≡⟨ equiv-resp-⟫ S∼T T∼U as ⟩
+      ⟦ equiv (∼-trans S∼T T∼U) ⟧ as
+    ∎
+
+-- Equivalences form isos
+
+equiv-is-iso : ∀ {S T} {P : S ⇒ T} {Q : T ⇒ S} →
+  (IsEquiv P) → (IsEquiv Q) → ⟦ P ⟫ Q ⟧ ≃ ⟦ done ⟧
+equiv-is-iso PisEq QisEq =
+  ≃-equiv (⟫-isEquiv PisEq QisEq) done-isEquiv
