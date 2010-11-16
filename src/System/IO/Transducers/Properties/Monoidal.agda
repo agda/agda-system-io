@@ -15,6 +15,8 @@ module System.IO.Transducers.Properties.Monoidal where
 
 open Relation.Binary.PropositionalEquality.≡-Reasoning
 
+infixr 8 _++_ _⟦[&]⟧_
+
 -- Concatenation of traces
 
 _++_ : ∀ {S T} → (Trace S) → (Trace T) → (Trace (S & T))
