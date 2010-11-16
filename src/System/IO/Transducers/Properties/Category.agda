@@ -3,11 +3,13 @@ open import Relation.Binary.PropositionalEquality using ( _≡_ ; refl ; sym ; c
 open import System.IO.Transducers.Lazy using ( _⇒_ ; inp ; out ; id ; done ; _⟫_ ; ⟦_⟧ ; _≃_ ; equiv )
 open import System.IO.Transducers.Session using ( Session ; I ; Σ ; _∼_ ; ∼-refl ; ∼-trans )
 open import System.IO.Transducers.Trace using ( Trace ; [] ; _∷_ )
-open import System.IO.Transducers.Properties.Lemmas using ( ⟦⟧-resp-∼ ; ≃-sym ; IsEquiv ; isEquiv ; ≃-equiv )
+open import System.IO.Transducers.Properties.Lemmas using ( ⟦⟧-resp-∼ ; ≃-refl ; ≃-sym ; IsEquiv ; isEquiv ; ≃-equiv )
 
 module System.IO.Transducers.Properties.Category where
 
 open Relation.Binary.PropositionalEquality.≡-Reasoning
+
+infixr 6 _⟦⟫⟧_
 
 -- Trace semantics of identity
 
@@ -37,6 +39,20 @@ _⟦⟫⟧_ : ∀ {S T U} →
 ⟫-semantics {I}     {T}     (inp {} P) (inp Q)    as
 ⟫-semantics {S}     {I}     (inp P)    (inp {} Q) as
 
+⟫-≃-⟦⟫⟧ : ∀ {S T U} 
+  {P : S ⇒ T} {f : Trace S → Trace T} {Q : T ⇒ U} {g : Trace T → Trace U} →
+    (⟦ P ⟧ ≃ f) → (⟦ Q ⟧ ≃ g) → (⟦ P ⟫ Q ⟧ ≃ f ⟦⟫⟧ g)
+⟫-≃-⟦⟫⟧ {S} {T} {U} {P} {f} {Q} {g} P≃f Q≃g as =
+  begin
+    ⟦ P ⟫ Q ⟧ as
+  ≡⟨ ⟫-semantics P Q as ⟩
+    ⟦ Q ⟧ (⟦ P ⟧ as)
+  ≡⟨ cong ⟦ Q ⟧ (P≃f as) ⟩
+    ⟦ Q ⟧ (f as)
+  ≡⟨ Q≃g (f as) ⟩
+    g (f as)
+  ∎
+
 -- Composition respects ≃
 
 ⟫-resp-≃ : ∀ {S T U} {P₁ P₂ : S ⇒ T} {Q₁ Q₂ : T ⇒ U} → 
@@ -45,12 +61,8 @@ _⟦⟫⟧_ : ∀ {S T U} →
 ⟫-resp-≃ {S} {T} {U} {P₁} {P₂} {Q₁} {Q₂} P₁≃P₂ Q₁≃Q₂ as =
   begin
     ⟦ P₁ ⟫ Q₁ ⟧ as
-  ≡⟨ ⟫-semantics P₁ Q₁ as ⟩
-    ⟦ Q₁ ⟧ (⟦ P₁ ⟧ as)
-  ≡⟨ cong ⟦ Q₁ ⟧ (P₁≃P₂ as) ⟩
-    ⟦ Q₁ ⟧ (⟦ P₂ ⟧ as)
-  ≡⟨ Q₁≃Q₂ (⟦ P₂ ⟧ as) ⟩
-    ⟦ Q₂ ⟧ (⟦ P₂ ⟧ as)
+  ≡⟨ ⟫-≃-⟦⟫⟧ P₁≃P₂ Q₁≃Q₂ as ⟩
+    (⟦ P₂ ⟧ ⟦⟫⟧ ⟦ Q₂ ⟧) as
   ≡⟨ sym (⟫-semantics P₂ Q₂ as) ⟩
     ⟦ P₂ ⟫ Q₂ ⟧ as
   ∎
@@ -72,13 +84,9 @@ _⟦⟫⟧_ : ∀ {S T U} →
 ⟫-assoc P Q R as =
   begin
     ⟦ (P ⟫ Q) ⟫ R ⟧ as
-  ≡⟨ ⟫-semantics (P ⟫ Q) R as ⟩
-    ⟦ R ⟧ (⟦ P ⟫ Q ⟧ as)
-  ≡⟨ cong ⟦ R ⟧ (⟫-semantics P Q as) ⟩
-    ⟦ R ⟧ (⟦ Q ⟧ (⟦ P ⟧ as))
-  ≡⟨ sym (⟫-semantics Q R (⟦ P ⟧ as)) ⟩
-    ⟦ Q ⟫ R ⟧ (⟦ P ⟧ as)
-  ≡⟨ sym (⟫-semantics P (Q ⟫ R) as) ⟩
+  ≡⟨ ⟫-≃-⟦⟫⟧ (⟫-semantics P Q) ≃-refl as ⟩
+    (⟦ P ⟧ ⟦⟫⟧ ⟦ Q ⟧ ⟦⟫⟧ ⟦ R ⟧) as
+  ≡⟨ sym (⟫-≃-⟦⟫⟧ ≃-refl (⟫-semantics Q R) as) ⟩
     ⟦ P ⟫ (Q ⟫ R) ⟧ as
   ∎
 

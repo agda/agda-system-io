@@ -27,11 +27,11 @@ open Relation.Binary.PropositionalEquality.≡-Reasoning
 -- All transducers respect completed traces
 
 ⟦⟧-resp-✓ : ∀ {S T} (P : S ⇒ T) {as} → (✓ as) → (✓ (⟦ P ⟧ as))
-⟦⟧-resp-✓ {I} (inp {} P) as
-⟦⟧-resp-✓ {Σ V F} (inp P) ([] {})
-⟦⟧-resp-✓ {Σ V F} (inp P) (a ∷ as) = ⟦⟧-resp-✓ (♭ P a) as
-⟦⟧-resp-✓ (out b P) as = b ∷ ⟦⟧-resp-✓ P as
-⟦⟧-resp-✓ (id refl) as = as
+⟦⟧-resp-✓ {I}     (inp {} P) as
+⟦⟧-resp-✓ {Σ V F} (inp P)    ([] {})
+⟦⟧-resp-✓ {Σ V F} (inp P)    (a ∷ as) = ⟦⟧-resp-✓ (♭ P a) as
+⟦⟧-resp-✓         (out b P)  as       = b ∷ ⟦⟧-resp-✓ P as
+⟦⟧-resp-✓         (id refl)  as       = as
 
 -- Strict transducers respect emptiness.
 
