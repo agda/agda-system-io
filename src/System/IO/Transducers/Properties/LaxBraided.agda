@@ -1,8 +1,9 @@
 open import Coinduction using ( ♭ )
-open import System.IO.Transducers.Lazy using ( _⇒_ ; inp ; out ; id ; done ; ⟦_⟧ ; _≃_ ; out* ; π₁ ; π₂ ; buffer ; _⟨&⟩_ ; swap )
+open import System.IO.Transducers.Lazy using ( _⇒_ ; inp ; out ; id ; done ; ⟦_⟧ ; _≃_ ; out* ; discard ; π₁ ; π₂ ; buffer ; _⟨&⟩_ ; swap )
 open import System.IO.Transducers.Session using ( I ; Σ ; Γ ; _/_ ; _&_ )
 open import System.IO.Transducers.Trace using ( Trace ; _≤_ ; [] ; _∷_ )
-open import System.IO.Transducers.Properties.Monoidal using ( _++_ ; front ; back )
+open import System.IO.Transducers.Properties.Category using ( _⟦⟫⟧_ )
+open import System.IO.Transducers.Properties.Monoidal using ( _++_ ; front ; back ; _⟦[&]⟧_ ; ++-β₁ ; ++-β₂-✓ )
 open import Relation.Binary.PropositionalEquality using ( _≡_ ; sym ; refl ; cong ; cong₂ )
 
 module System.IO.Transducers.Properties.LaxBraided where
@@ -28,6 +29,18 @@ out*-semantics (c ∷ cs) P as = out*-semantics cs (out c P) as
 I-η : ∀ (as : Trace I) → (as ≡ [])
 I-η [] = refl
 I-η (() ∷ _)
+
+-- Semantics of projections
+
+π₁-semantics : ∀ {S T} → ⟦ π₁ {S} {T} ⟧ ≃ front
+π₁-semantics {I}     as       = I-η (⟦ discard ⟧ as)
+π₁-semantics {Σ V F} []       = refl
+π₁-semantics {Σ V F} (a ∷ as) = cong (_∷_ a) (π₁-semantics as)
+
+π₂-semantics : ∀ {S T} → ⟦ π₂ {S} {T} ⟧ ≃ back {S}
+π₂-semantics {I}     as       = refl
+π₂-semantics {Σ V F} []       = refl
+π₂-semantics {Σ V F} (a ∷ as) = π₂-semantics {♭ F a} as
 
 -- Semantics of buffering
 
@@ -62,3 +75,22 @@ _⟦⟨&⟩⟧_ : ∀ {S T U} → (Trace S → Trace T) → (Trace S → Trace U
   ⟦ P ⟨&⟩ Q ⟧ ≃ ⟦ P ⟧ ⟦⟨&⟩⟧ ⟦ Q ⟧
 ⟨&⟩-semantics P Q as = buffer-semantics P Q [] as
 
+⟨&⟩-≃-⟦⟨&⟩⟧ : ∀ {S T U} 
+  {P : S ⇒ T} {f : Trace S → Trace T} {Q : S ⇒ U} {g : Trace S → Trace U} →
+    (⟦ P ⟧ ≃ f) → (⟦ Q ⟧ ≃ g) → (⟦ P ⟨&⟩ Q ⟧ ≃ f ⟦⟨&⟩⟧ g)
+⟨&⟩-≃-⟦⟨&⟩⟧ {S} {T} {U} {P} {f} {Q} {g} P≃f Q≃g as =
+  begin
+    ⟦ P ⟨&⟩ Q ⟧ as
+  ≡⟨ ⟨&⟩-semantics P Q as ⟩
+    (⟦ P ⟧ ⟦⟨&⟩⟧ ⟦ Q ⟧) as
+  ≡⟨ cong₂ _++_ (P≃f as) (Q≃g as) ⟩
+    (f ⟦⟨&⟩⟧ g) as
+  ∎
+
+-- Semantics of swap
+
+⟦swap⟧ : ∀ {S T} → (Trace (S & T) → Trace (T & S))
+⟦swap⟧ {S} as = back {S} as ++ front {S} as
+
+swap-semantics : ∀ {S T} → ⟦ swap {S} {T} ⟧ ≃ ⟦swap⟧ {S} {T}
+swap-semantics {S} = ⟨&⟩-≃-⟦⟨&⟩⟧ (π₂-semantics {S}) (π₁-semantics {S})
