@@ -8,7 +8,7 @@ open import Data.Unit using ( ⊤ ; tt )
 open import System.IO.Transducers.Session
   using ( Session ; I ; Σ ; _∼_ ; ∼-sym ; Γ ; _/_ ; IsΣ ; ⟨_⟩ ; _&_ ; ¿ ; _+_  )
   renaming ( unit₁ to ∼-unit₁ ; unit₂ to ∼-unit₂ ; assoc to ∼-assoc )
-open import System.IO.Transducers.Trace using ( _≥_ ; _≤_ ; Trace ; _⊑_ ; [] ; _∷_ )
+open import System.IO.Transducers.Trace using ( _≥_ ; _≤_ ; Trace ; _⊑_ ; [] ; [✓] ; _∷_ )
 open import Relation.Binary.PropositionalEquality using ( _≡_ ; refl )
 
 module System.IO.Transducers.Lazy where
@@ -57,6 +57,8 @@ out* (b ∷ bs) P = out* bs (out b P)
 ⟦ inp P   ⟧ (a ∷ as) = ⟦ ♭ P a ⟧ as
 ⟦ out b P ⟧ as       = b ∷ ⟦ P ⟧ as
 ⟦ id refl ⟧ as       = as
+⟦_⟧ {I}     (inp {} P) [✓]
+⟦_⟧ {Σ V F} (inp P)    ([✓] {})
 
 -- Extensional equivalence on trace functions
 
@@ -99,11 +101,12 @@ delay (Σ V F) P         = inp (♯ λ a → delay (♭ F a) P)
 -- action on morphisms:
  
 _[&]_ : ∀ {S T U V} → (S ⇒ T) → (U ⇒ V) → ((S & U) ⇒ (T & V))
-_[&]_ {S}      {I}     P          Q = delay S Q
-_[&]_ {I}      {Σ W G} (inp {} P) Q
-_[&]_ {Σ V F}  {Σ W G} (inp P)    Q = inp (♯ λ a → ♭ P a [&] Q)
+_[&]_ {Σ V F}          (inp P)    Q = inp (♯ λ a → ♭ P a [&] Q)
 _[&]_ {S}      {Σ W G} (out b P)  Q = out b (P [&] Q)
-_[&]_ .{Σ W G} {Σ W G} (id refl)  Q = inp (♯ λ a → out a (done {♭ G a} [&] Q))
+_[&]_ {I}              (id refl)  Q = Q
+_[&]_ {Σ V F}          (id refl)  Q = inp (♯ λ a → out a (done {♭ F a} [&] Q))
+_[&]_ {I}              (inp {} P) Q
+_[&]_ {S}      {I}     (out () P) Q
 
 -- Units for &
 

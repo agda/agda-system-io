@@ -24,12 +24,6 @@ out*-semantics : ∀ {S T U} (cs : T ≤ U) (P : S ⇒ T) →
 out*-semantics [] P as = refl
 out*-semantics (c ∷ cs) P as = out*-semantics cs (out c P) as
 
--- Eta conversion for session I
-
-I-η : ∀ (as : Trace I) → (as ≡ [])
-I-η [] = refl
-I-η (() ∷ _)
-
 -- Semantics of projections
 
 π₁-semantics : ∀ {S T} → ⟦ π₁ {S} {T} ⟧ ≃ front
@@ -94,3 +88,4 @@ _⟦⟨&⟩⟧_ : ∀ {S T U} → (Trace S → Trace T) → (Trace S → Trace U
 
 swap-semantics : ∀ {S T} → ⟦ swap {S} {T} ⟧ ≃ ⟦swap⟧ {S} {T}
 swap-semantics {S} = ⟨&⟩-≃-⟦⟨&⟩⟧ (π₂-semantics {S}) (π₁-semantics {S})
+  

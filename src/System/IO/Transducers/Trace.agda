@@ -14,12 +14,13 @@ infixr 5 _∷_ _++_ _++'_
 
 data Trace (S : Session) : Set where
   [] : (Trace S)
+  [✓] : {isI : IsI S} → (Trace S)
   _∷_ : (a : Γ S) → (as : Trace (S / a)) → (Trace S)
 
 -- Traces ending in [] at type I are completed traces
 
 data ✓ {S : Session} : (Trace S) → Set where
-  [] : {isI : IsI S} → ✓ []
+  [✓] : {isI : IsI S} → ✓ ([✓] {S} {isI})
   _∷_ : (a : Γ S) → ∀ {as} → (✓ as) → (✓ (a ∷ as))
 
 -- Partial traces come with a prefix order.

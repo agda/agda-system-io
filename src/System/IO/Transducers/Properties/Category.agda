@@ -2,7 +2,7 @@ open import Coinduction using ( ♭ )
 open import Relation.Binary.PropositionalEquality using ( _≡_ ; refl ; sym ; cong )
 open import System.IO.Transducers.Lazy using ( _⇒_ ; inp ; out ; id ; done ; _⟫_ ; ⟦_⟧ ; _≃_ ; equiv )
 open import System.IO.Transducers.Session using ( Session ; I ; Σ ; _∼_ ; ∼-refl ; ∼-trans )
-open import System.IO.Transducers.Trace using ( Trace ; [] ; _∷_ )
+open import System.IO.Transducers.Trace using ( Trace ; [] ; [✓] ; _∷_ )
 open import System.IO.Transducers.Properties.Lemmas using ( ⟦⟧-resp-∼ ; ≃-refl ; ≃-sym ; IsEquiv ; isEquiv ; ≃-equiv )
 
 module System.IO.Transducers.Properties.Category where
@@ -36,6 +36,7 @@ _⟦⟫⟧_ : ∀ {S T U} →
 ⟫-semantics                 (out b P)  (inp Q)    as       = ⟫-semantics P (♭ Q b) as
 ⟫-semantics {Σ V F} {Σ W G} (inp P)    (inp Q)    []       = refl
 ⟫-semantics {Σ V F} {Σ W G} (inp P)    (inp Q)    (a ∷ as) = ⟫-semantics (♭ P a) (inp Q) as
+⟫-semantics {Σ V F} {Σ W G} (inp P)    (inp Q)    ([✓] {})
 ⟫-semantics {I}     {T}     (inp {} P) (inp Q)    as
 ⟫-semantics {S}     {I}     (inp P)    (inp {} Q) as
 
@@ -95,6 +96,7 @@ _⟦⟫⟧_ : ∀ {S T U} →
 equiv-resp-done : ∀ {S} → ⟦ done ⟧ ≃ ⟦ equiv (∼-refl {S}) ⟧
 equiv-resp-done {I}     as = refl
 equiv-resp-done {Σ V F} [] = refl
+equiv-resp-done {Σ V F} ([✓] {})
 equiv-resp-done {Σ V F} (a ∷ as) = cong (_∷_ a) (equiv-resp-done as)
 
 done-isEquiv : ∀ {S} → IsEquiv (done {S})
@@ -106,6 +108,7 @@ equiv-resp-⟦⟫⟧ : ∀ {S T U} (S∼T : S ∼ T) (T∼U : T ∼ U) →
   ⟦ equiv S∼T ⟧ ⟦⟫⟧ ⟦ equiv T∼U ⟧ ≃ ⟦ equiv (∼-trans S∼T T∼U) ⟧
 equiv-resp-⟦⟫⟧ I       I        as       = refl
 equiv-resp-⟦⟫⟧ (Σ W F) (Σ .W G) []       = refl
+equiv-resp-⟦⟫⟧ (Σ W F) (Σ .W G) ([✓] {})
 equiv-resp-⟦⟫⟧ (Σ W F) (Σ .W G) (a ∷ as) = cong (_∷_ a) (equiv-resp-⟦⟫⟧ (♭ F a) (♭ G a) as)
 
 equiv-resp-⟫ : ∀ {S T U} (S∼T : S ∼ T) (T∼U : T ∼ U) →
