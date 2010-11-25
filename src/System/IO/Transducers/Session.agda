@@ -3,11 +3,11 @@ open import Data.Bool using ( Bool ; true ; false ; if_then_else_ )
 open import Data.Empty using ( ⊥ )
 open import Data.Maybe using ( Maybe ; just ; nothing )
 open import Data.Sum using ( _⊎_ ; inj₁ ; inj₂ )
-open import Data.Unit using ( ⊤ )
+open import Data.Unit using ( ⊤ ; tt )
 open import Data.Natural using ( Natural ; # )
 open import Data.String using ( String )
 open import Data.ByteString using ( ByteString ; strict ; length )
-open import Level using ( Level )
+open import Relation.Binary.PropositionalEquality using ( _≡_ ; refl )
 
 module System.IO.Transducers.Session where
 
@@ -96,6 +96,12 @@ IsI (Σ V F) = ⊥
 IsΣ : Session → Set
 IsΣ I       = ⊥
 IsΣ (Σ V F) = ⊤
+
+-- IsΣ respects ≡.
+
+IsΣ-≡ : ∀ {S} {isΣ : IsΣ S} {T} → (S ≡ T) → (IsΣ T)
+IsΣ-≡ {Σ V F} refl = tt
+IsΣ-≡ {I}  {} refl
 
 -- Singletons
 

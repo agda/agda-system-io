@@ -6,10 +6,11 @@ open import Data.Strict using ( Strict ; ! )
 open import Data.Sum using ( _⊎_ ; inj₁ ; inj₂ )
 open import Data.Unit using ( ⊤ ; tt )
 open import System.IO.Transducers.Session
-  using ( Session ; I ; Σ ; _∼_ ; ∼-sym ; Γ ; _/_ ; IsΣ ; ⟨_⟩ ; _&_ ; ¿ ; _+_  )
+  using ( Session ; I ; Σ ; _∼_ ; ∼-sym ; Γ ; _/_ ; IsΣ ; IsΣ-≡ ; ⟨_⟩ ; _&_ ; ¿ ; _+_  )
   renaming ( unit₁ to ∼-unit₁ ; unit₂ to ∼-unit₂ ; assoc to ∼-assoc )
-open import System.IO.Transducers.Trace using ( _≥_ ; _≤_ ; Trace ; _⊑_ ; [] ; [✓] ; _∷_ )
+open import System.IO.Transducers.Trace using ( _≥_ ; _≤_ ; Trace ; _⊑_ ; [] ; _∷_ )
 open import Relation.Binary.PropositionalEquality using ( _≡_ ; refl )
+open import Relation.Nullary using ( Dec ; yes ; no )
 
 module System.IO.Transducers.Lazy where
 
@@ -35,7 +36,7 @@ infixr 8 _[&]_ _⟨&⟩_ _⟨+⟩_ _⟨¿⟩_
 -- A bit of hoop-jumping here, to get S ⇒ T to be a Set rather than a Set₁.
 
 data _⇒_ (S T : Session) : Set where
-  inp : {isΣ : IsΣ S} → ∞ (∀ a → (S / a ⇒ T)) → (S ⇒ T)
+  inp : {ΣS : IsΣ S} → ∞ (∀ a → (S / a ⇒ T)) → {ΣT : IsΣ T} → (S ⇒ T)
   out : ∀ b → (S ⇒ T / b) → (S ⇒ T)
   id : (S ≡ T) → (S ⇒ T)
 
@@ -57,8 +58,6 @@ out* (b ∷ bs) P = out* bs (out b P)
 ⟦ inp P   ⟧ (a ∷ as) = ⟦ ♭ P a ⟧ as
 ⟦ out b P ⟧ as       = b ∷ ⟦ P ⟧ as
 ⟦ id refl ⟧ as       = as
-⟦_⟧ {I}     (inp {} P) [✓]
-⟦_⟧ {Σ V F} (inp P)    ([✓] {})
 
 -- Extensional equivalence on trace functions
 
@@ -83,29 +82,24 @@ equiv (Σ V F) = inp (♯ λ a → out a (equiv (♭ F a)))
 -- we prioritize output over input.
 
 _⟫_ : ∀ {S T U} → (S ⇒ T) → (T ⇒ U) → (S ⇒ U)
-_⟫_         (id refl)  Q         = Q
-_⟫_         P          (id refl) = P
-_⟫_         P          (out b Q) = out b (P ⟫ Q)
-_⟫_         (out b P)  (inp Q)   = P ⟫ ♭ Q b
-_⟫_ {I}     (inp {} P) Q
-_⟫_ {Σ V F} (inp P)    Q         = inp (♯ λ a → ♭ P a ⟫ Q)
-
--- Delay a process
-
-delay : ∀ S {T U} → (T ⇒ U) → (S & T) ⇒ U
-delay I       P         = P
-delay (Σ V F) (out b P) = out b (delay (Σ V F) P)
-delay (Σ V F) P         = inp (♯ λ a → delay (♭ F a) P)
+_⟫_                     (id refl)  Q         = Q
+_⟫_                     P          (id refl) = P
+_⟫_                     P          (out b Q) = out b (P ⟫ Q)
+_⟫_                     (out b P)  (inp Q)   = P ⟫ ♭ Q b
+_⟫_ {Σ V F} {T} {Σ X H} (inp P)    Q         = inp (♯ λ a → ♭ P a ⟫ Q)
+_⟫_ {Σ V F} {T} {I}     (inp P)    (inp Q {})
+_⟫_ {I}                 (inp {} P) Q
 
 -- The category has monoidal structure given by &, with
 -- action on morphisms:
  
 _[&]_ : ∀ {S T U V} → (S ⇒ T) → (U ⇒ V) → ((S & U) ⇒ (T & V))
-_[&]_ {Σ V F}          (inp P)    Q = inp (♯ λ a → ♭ P a [&] Q)
+_[&]_ {Σ V F}  {Σ W G} (inp P)    Q = inp (♯ λ a → ♭ P a [&] Q)
 _[&]_ {S}      {Σ W G} (out b P)  Q = out b (P [&] Q)
 _[&]_ {I}              (id refl)  Q = Q
 _[&]_ {Σ V F}          (id refl)  Q = inp (♯ λ a → out a (done {♭ F a} [&] Q))
 _[&]_ {I}              (inp {} P) Q
+_[&]_ {S}      {I}     (inp P {}) Q
 _[&]_ {S}      {I}     (out () P) Q
 
 -- Units for &
@@ -130,21 +124,22 @@ assoc {S} = equiv (∼-assoc {S})
 assoc⁻¹ : ∀ {S T U} → ((S & T) & U) ⇒ (S & (T & U))
 assoc⁻¹ {S} = equiv (∼-sym (∼-assoc {S}))
 
--- Discard all input
+-- Projections (for nontrival sessions).
 
-discard : ∀ {S} → (S ⇒ I)
-discard {I}     = done
-discard {Σ V F} = inp (♯ λ a → discard)
+π₁' : ∀ {S S' T U} a → (S' ≡ S / a) → (S ≡ U) → (S' & T ⇒ U)
+π₁' {Σ V F} {I}     {I}     a  I≡Fa   refl = out a (id I≡Fa)
+π₁' {Σ V F} {I}     {Σ X H} a  I≡Fa   refl = inp (♯ λ b → π₁' a I≡Fa refl)
+π₁' {Σ V F} {Σ W G}         a  ΣWG≡Fa refl = out a (inp (♯ λ b → π₁' b refl ΣWG≡Fa) {IsΣ-≡ ΣWG≡Fa})
+π₁' {I}                     () S'≡S/a refl
 
--- The projection morphisms for [] and &:
+π₁ : ∀ {S T} {isΣ : IsΣ S} → (S & T ⇒ S)
+π₁ {Σ V F} = inp (♯ λ a → π₁' a refl refl)
+π₁ {I} {T} {}
 
-π₁ : ∀ {S T} → ((S & T) ⇒ S)
-π₁ {I}     = discard
-π₁ {Σ W F} = inp (♯ λ a → out a π₁)
-
-π₂ : ∀ {S T} → ((S & T) ⇒ T)
-π₂ {I}     = done
-π₂ {Σ W F} = inp (♯ λ a → π₂ {♭ F a})
+π₂ : ∀ {S T} {isΣ : IsΣ T} → (S & T ⇒ T)
+π₂ {I}             = done
+π₂ {Σ V F} {Σ W G} = inp (♯ λ a → π₂ {♭ F a})
+π₂ {Σ V F} {I} {}
 
 -- The category is almost cartesian, at the cost of
 -- buffering.  WARNING.  BUFFERING.  This is bad.  Do not do this.
@@ -179,10 +174,25 @@ P ⟨&⟩ Q = buffer P Q []
 copy : ∀ {S} → (S ⇒ (S & S))
 copy = done ⟨&⟩ done
 
-swap : ∀ {S T} → ((S & T) ⇒ (T & S))
-swap {S} = π₂ {S} ⟨&⟩ π₁ {S}
+-- Delay
 
--- Lazy coproduct structure.
+delay' : ∀ {S T} {isΣ : IsΣ T} → (S ≤ T) → S ⇒ T
+delay' {I}             cs = out* cs done
+delay' {Σ V F} {Σ W G} cs = inp (♯ λ c → delay' (c ∷ cs))
+delay' {Σ V F} {I}  {} cs
+
+delay : ∀ {S} → S ⇒ S
+delay {I}     = done
+delay {Σ V F} = delay' []
+
+-- Braiding structure
+
+swap : ∀ {S T} → ((S & T) ⇒ (T & S))
+swap {I}     {T}     = unit₂⁻¹
+swap {Σ V F} {I}     = unit₂ ⟫ delay
+swap {Σ V F} {Σ W G} = π₂ {Σ V F} ⟨&⟩ π₁ {Σ V F}
+
+-- Choice
 
 ι₁ : ∀ {S T} → (S ⇒ S + T)
 ι₁ = out true done
@@ -197,8 +207,9 @@ choice P Q false = Q
 _[+]_ : ∀ {S T U V} → (S ⇒ U) → (T ⇒ V) → ((S + T) ⇒ (U + V))
 P [+] Q = inp (♯ choice (out true P) (out false Q))
 
-_⟨+⟩_ : ∀ {S T U} → (S ⇒ U) → (T ⇒ U) → ((S + T) ⇒ U)
-P ⟨+⟩ Q = inp (♯ choice P Q)
+_⟨+⟩_ : ∀ {S T U} {isΣ : IsΣ U} → (S ⇒ U) → (T ⇒ U) → ((S + T) ⇒ U)
+_⟨+⟩_ {S} {T} {Σ X H} P Q = inp (♯ choice P Q)
+_⟨+⟩_ {S} {T} {I}  {} P Q
 
 -- Options.
 
@@ -211,5 +222,5 @@ none = ι₂
 [¿] : ∀ {S T} → (S ⇒ T) → (¿ S ⇒ ¿ T)
 [¿] P = P [+] done
 
-_⟨¿⟩_ : ∀ {S T} → (S ⇒ T) → (I ⇒ T) → (¿ S ⇒ T)
-P ⟨¿⟩ Q = P ⟨+⟩ Q
+_⟨¿⟩_ : ∀ {S T} {isΣ : IsΣ T} → (S ⇒ T) → (I ⇒ T) → (¿ S ⇒ T)
+_⟨¿⟩_ {S} {T} {isΣ} = _⟨+⟩_ {S} {I} {T} {isΣ}

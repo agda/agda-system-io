@@ -1,7 +1,7 @@
 open import Coinduction using ( ♭ )
 open import Data.Empty using ( ⊥-elim )
-open import System.IO.Transducers.Session using ( Session ; I ; Σ ; Γ ; _/_ ; _∼_ )
-open import System.IO.Transducers.Trace using ( Trace ; [] ; [✓] ; _∷_ ; ✓ )
+open import System.IO.Transducers.Session using ( Session ; I ; Σ ; IsΣ ; Γ ; _/_ ; _∼_ )
+open import System.IO.Transducers.Trace using ( Trace ; [] ; _∷_ ; ✓ )
 open import System.IO.Transducers.Lazy using ( _⇒_ ; inp ; out ; id ; ⟦_⟧ ; _≃_ ; equiv )
 open import System.IO.Transducers.Strict using ( Strict ; inp ; id )
 open import Relation.Binary.PropositionalEquality using ( _≡_ ; refl ; sym ; trans ; cong )
@@ -10,21 +10,6 @@ open import Relation.Nullary using ( Dec ; ¬_ ; yes ; no )
 module System.IO.Transducers.Properties.Lemmas where
 
 open Relation.Binary.PropositionalEquality.≡-Reasoning
-
--- If a trace can be made complete by replacing [] by [✓] then do so:
-
-↑ : ∀ {S} → (Trace S) → (Trace S)
-↑ {I} as = [✓]
-↑ {Σ V F} [] = []
-↑ {Σ V F} (a ∷ as) = a ∷ ↑ as
-↑ {Σ V F} ([✓] {})
-
--- Make a trace incomplete
-
-↓ : ∀ {S} → (Trace S) → (Trace S)
-↓ []       = []
-↓ [✓]      = []
-↓ (a ∷ as) = a ∷ ↓ as
 
 -- ≃ is an equivalence
 
@@ -41,47 +26,71 @@ open Relation.Binary.PropositionalEquality.≡-Reasoning
 
 -- Completion is decidable
 
+¬✓[] : ∀ {S} {isΣ : IsΣ S} → (¬ ✓ {S} [])
+¬✓[] {I}     {} []
+¬✓[] {Σ V F}    ([] {})
+
 ✓-tl : ∀ {S} {a : Γ S} {as : Trace (S / a)} → (✓ {S} (a ∷ as)) → (✓ as)
 ✓-tl (a ∷ ✓as) = ✓as
 
 ✓? : ∀ {S} (as : Trace S) → Dec (✓ as)
-✓? []                 = no (λ ())
-✓? [✓]                = yes [✓]
-✓? (a ∷ as) with ✓? as
-✓? (a ∷ as) | yes ✓as = yes (a ∷ ✓as)
-✓? (a ∷ as) | no ¬✓as = no (λ ✓a∷as → ¬✓as (✓-tl ✓a∷as))
+✓? {I}     []                 = yes []
+✓? {Σ V F} []                 = no ¬✓[]
+✓?         (a ∷ as) with ✓? as
+✓?         (a ∷ as) | yes ✓as = yes (a ∷ ✓as)
+✓?         (a ∷ as) | no ¬✓as = no (λ ✓a∷as → ¬✓as (✓-tl ✓a∷as))
 
--- Completing then incompleting is incompleting
+-- Eta conversion for traces of type I
 
-↓-↑ : ∀ {S} → (as : Trace S) → (↓ (↑ as) ≡ ↓ as)
-↓-↑ {I}     []       = refl
-↓-↑ {I}     [✓]      = refl
-↓-↑ {Σ W F} []       = refl
-↓-↑ {Σ W F} (a ∷ as) = cong (_∷_ a) (↓-↑ as)
-↓-↑ {I}     (() ∷ as)
-↓-↑ {Σ W F} ([✓] {})
+I-η : ∀ (as : Trace I) → (as ≡ [])
+I-η [] = refl
+I-η (() ∷ as)
 
--- Completion is the identity on completed traces
+-- All traces at type I are complete
 
-↑-✓ : ∀ {S} {as : Trace S} → (✓ as) → (↑ as ≡ as)
-↑-✓ {I}     [✓]      = refl
-↑-✓ {Σ V F} (a ∷ as) = cong (_∷_ a) (↑-✓ as)
-↑-✓ {I}     (() ∷ as)
-↑-✓ {Σ V F} ([✓] {})
+I-✓ : ∀ (as : Trace I) → (✓ as)
+I-✓ [] = []
+I-✓ (() ∷ as)
 
--- Eta conversion for complete traces of type I
+-- Make a function reflective
 
-I-✓-η : ∀ {as : Trace I} → (✓ as) → (as ≡ [✓])
-I-✓-η {[✓]}     ✓as = refl
-I-✓-η {[]}      ()
-I-✓-η {() ∷ as} ✓as
+liat : ∀ {S} → (Trace S) → (Trace S)
+liat []           = []
+liat (a ∷ [])     = []
+liat (a ∷ b ∷ bs) = a ∷ liat (b ∷ bs)
 
--- Eta conversion for incomplete traces of type I
+incomplete : ∀ {S} → (Trace S) → (Trace S)
+incomplete as with ✓? as
+incomplete as | yes ✓as = liat as
+incomplete as | no ¬✓as = as
 
-I-¬✓-η : ∀ {as : Trace I} → (¬ ✓ as) → (as ≡ [])
-I-¬✓-η {[]}     ¬✓as = refl
-I-¬✓-η {[✓]}    ¬✓as = ⊥-elim (¬✓as [✓])
-I-¬✓-η {() ∷ as} ¬✓as
+reflective : ∀ {S T} → (Trace S → Trace T) → (Trace S → Trace T)
+reflective f as with ✓? as
+reflective f as | yes ✓as = f as
+reflective f as | no ¬✓as = incomplete (f as)
+
+liat-¬✓ : ∀ {S} a as → ¬ ✓ {S} (liat (a ∷ as))
+liat-¬✓ {I}     () []       []
+liat-¬✓ {Σ V F} a  []       ([] {})
+liat-¬✓         a  (b ∷ bs) (.a ∷ ✓cs) = liat-¬✓ b bs ✓cs
+
+incomplete-¬✓ : ∀ {S} {isΣ : IsΣ S} (as : Trace S) → ¬ ✓ (incomplete as)
+incomplete-¬✓ as with ✓? as
+incomplete-¬✓ {I}  {} [] | yes []
+incomplete-¬✓ {Σ V F} [] | yes ([] {})
+incomplete-¬✓ (a ∷ as)   | yes ✓a∷as = liat-¬✓ a as
+incomplete-¬✓ as         | no ¬✓as = ¬✓as
+
+reflective-refl-✓ : ∀ {S T} {isΣ : IsΣ T} (f : Trace S → Trace T) as → (✓ (reflective f as)) → (✓ as)
+reflective-refl-✓             f as ✓bs with ✓? as 
+reflective-refl-✓             f as ✓bs | yes ✓as = ✓as
+reflective-refl-✓ {S} {Σ V F} f as ✓bs | no ¬✓as = ⊥-elim (incomplete-¬✓ (f as) ✓bs)
+reflective-refl-✓ {S} {I}  {} f as ✓bs | no ¬✓as
+
+reflective-≡-✓ : ∀ {S T} (f : Trace S → Trace T) {as} → (✓ as) → (reflective f as ≡ f as)
+reflective-≡-✓ f {as} ✓as with ✓? as
+reflective-≡-✓ f {as} ✓as | yes _   = refl
+reflective-≡-✓ f {as} ✓as | no ¬✓as = ⊥-elim (¬✓as ✓as)
 
 -- All transducers respect completed traces
 
@@ -90,28 +99,17 @@ I-¬✓-η {() ∷ as} ¬✓as
 ⟦⟧-resp-✓         (out b P)  as       ✓as        = b ∷ ⟦⟧-resp-✓ P as ✓as
 ⟦⟧-resp-✓         (id refl)  as       ✓as        = ✓as
 ⟦⟧-resp-✓ {I}     (inp {} P) as       ✓as
-⟦⟧-resp-✓ {Σ V F} (inp P)    []       ()
-⟦⟧-resp-✓ {Σ V F} (inp P)    ([✓] {}) [✓]
+⟦⟧-resp-✓ {Σ V F} (inp P)    []       ([] {})
 
 -- All transducers reflect completed traces
 
 ⟦⟧-refl-✓ : ∀ {S T} (P : S ⇒ T) as → (✓ (⟦ P ⟧ as)) → (✓ as)
-⟦⟧-refl-✓ {Σ V F} (inp P)    (a ∷ as) bs        = a ∷ ⟦⟧-refl-✓ (♭ P a) as bs
-⟦⟧-refl-✓         (out b P)  as       (.b ∷ bs) = ⟦⟧-refl-✓ P as bs
-⟦⟧-refl-✓         (id refl)  as       bs        = bs
-⟦⟧-refl-✓ {I}     (inp {} P) as       bs
-⟦⟧-refl-✓ {Σ V F} (inp P)    []       ()
-⟦⟧-refl-✓ {Σ V F} (inp P)    ([✓] {}) bs
-
--- All transducers respect ↓
-  
-⟦⟧-resp-↓ : ∀ {S T} (P : S ⇒ T) (as : Trace S) → (⟦ P ⟧ (↓ as) ≡ ↓ (⟦ P ⟧ as))
-⟦⟧-resp-↓         (inp P)    []       = refl
-⟦⟧-resp-↓         (inp P)    (a ∷ as) = ⟦⟧-resp-↓ (♭ P a) as
-⟦⟧-resp-↓         (out b P)  as       = cong (_∷_ b) (⟦⟧-resp-↓ P as)
-⟦⟧-resp-↓         (id refl)  as       = refl
-⟦⟧-resp-↓ {I}     (inp {} P) [✓]
-⟦⟧-resp-↓ {Σ V F} (inp P)    ([✓] {}) 
+⟦⟧-refl-✓ {Σ V F}         (inp P)    (a ∷ as) bs        = a ∷ ⟦⟧-refl-✓ (♭ P a) as bs
+⟦⟧-refl-✓                 (out b P)  as       (.b ∷ bs) = ⟦⟧-refl-✓ P as bs
+⟦⟧-refl-✓                 (id refl)  as       bs        = bs
+⟦⟧-refl-✓ {I}             (inp {} P) as       bs
+⟦⟧-refl-✓ {Σ V F} {I}     (inp P {}) as       bs
+⟦⟧-refl-✓ {Σ V F} {Σ W G} (inp P)    []       ([] {})
 
 -- Strict transducers respect emptiness.
 
@@ -132,7 +130,6 @@ I-¬✓-η {() ∷ as} ¬✓as
 ⟦⟧-resp-∼ : ∀ {S T} (eq₁ eq₂ : S ∼ T) → ⟦ equiv eq₁ ⟧ ≃ ⟦ equiv eq₂ ⟧ 
 ⟦⟧-resp-∼ I       I        as       = refl
 ⟦⟧-resp-∼ (Σ V F) (Σ .V G) []       = refl
-⟦⟧-resp-∼ (Σ V F) (Σ .V G) ([✓] {})
 ⟦⟧-resp-∼ (Σ V F) (Σ .V G) (a ∷ as) = cong (_∷_ a) (⟦⟧-resp-∼ (♭ F a) (♭ G a) as)
 
 -- IsEquiv P is inhabited whenever P is equivalent to an equivalence
