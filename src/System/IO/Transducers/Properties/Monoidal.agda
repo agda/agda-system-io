@@ -109,6 +109,20 @@ assoc-semantics {Σ V F}                 []        = refl
 assoc-semantics {Σ V F}                 (a ∷ as)  = cong (_∷_ a) (assoc-semantics {♭ F a} as)
 assoc-semantics {I}     {I}     {I}     (() ∷ as)
 
+⟦assoc⁻¹⟧ : ∀ {S T U} → (Trace ((S & T) & U)) → (Trace (S & (T & U)))
+⟦assoc⁻¹⟧ {S} {T} {U} as =
+  front {S} (front {S & T} as) ++ back {S} (front {S & T} as) ++ back {S & T} as
+
+assoc⁻¹-semantics : ∀ {S T U} → ⟦ assoc⁻¹ {S} {T} {U} ⟧ ≃ ⟦assoc⁻¹⟧ {S} {T} {U}
+assoc⁻¹-semantics {I}     {I}     {I}     []        = refl
+assoc⁻¹-semantics {I}     {I}     {Σ X H} []        = refl
+assoc⁻¹-semantics {I}     {Σ W G}         []        = refl
+assoc⁻¹-semantics {I}     {I}     {Σ X H} (a ∷ as)  = cong (_∷_ a) (assoc⁻¹-semantics {I} {I} as)
+assoc⁻¹-semantics {I}     {Σ W G}         (a ∷ as)  = cong (_∷_ a) (assoc⁻¹-semantics {I} {♭ G a} as)
+assoc⁻¹-semantics {Σ V F}                 []        = refl
+assoc⁻¹-semantics {Σ V F}                 (a ∷ as)  = cong (_∷_ a) (assoc⁻¹-semantics {♭ F a} as)
+assoc⁻¹-semantics {I}     {I}     {I}     (() ∷ as)
+
 -- Congruence for concatenation, where the rhs can assume the lhs has terminated
 
 ++-cong : ∀ {S T} {as₁ as₂ : Trace S} {bs₁ bs₂ : Trace T} →
@@ -118,19 +132,32 @@ assoc-semantics {I}     {I}     {I}     (() ∷ as)
 ++-cong {Σ V F} {T} {a ∷ as}  refl bs₁≡bs₂ = cong (_∷_ a) (++-cong refl (λ ✓as → bs₁≡bs₂ (a ∷ ✓as)))
 ++-cong {I}     {T} {() ∷ as} refl bs₁≡bs₂
 
--- Concatenation reflects termination
+-- Concatenation respects and reflects termination
 
-++-✓₁ : ∀ {S T} {as : Trace S} {bs : Trace T} → (✓ (as ++ bs)) → (✓ as)
-++-✓₁ {I}     {T} {[]}      cs        = []
-++-✓₁ {Σ V F} {T} {a ∷ as}  (.a ∷ cs) = a ∷ ++-✓₁ cs
-++-✓₁ {Σ V F} {T} {[]}      ([] {})
-++-✓₁ {I}     {T} {() ∷ as} cs
+++-resp-✓ : ∀ {S T} {as : Trace S} {bs : Trace T} → (✓ as) → (✓ bs) → (✓ (as ++ bs))
+++-resp-✓ {I}     []         ✓bs = ✓bs
+++-resp-✓ {Σ V F} (a ∷ ✓as)  ✓bs = a ∷ ++-resp-✓ ✓as ✓bs
+++-resp-✓ {I}     (() ∷ ✓as) ✓bs
+++-resp-✓ {Σ V F} ([] {})    ✓bs
 
-++-✓₂ : ∀ {S T} {as : Trace S} {bs : Trace T} → (✓ (as ++ bs)) → (✓ bs)
-++-✓₂ {I}     {T} {[]}      cs        = cs
-++-✓₂ {Σ W F} {T} {a ∷ as}  (.a ∷ cs) = ++-✓₂ {♭ F a} {T} {as} cs
-++-✓₂ {Σ V F} {T} {[]}      ([] {})
-++-✓₂ {I}     {T} {() ∷ as} cs
+++-refl-✓₁ : ∀ {S T} {as : Trace S} {bs : Trace T} → (✓ (as ++ bs)) → (✓ as)
+++-refl-✓₁ {I}     {T} {[]}      cs        = []
+++-refl-✓₁ {Σ V F} {T} {a ∷ as}  (.a ∷ cs) = a ∷ ++-refl-✓₁ cs
+++-refl-✓₁ {Σ V F} {T} {[]}      ([] {})
+++-refl-✓₁ {I}     {T} {() ∷ as} cs
+
+++-refl-✓₂ : ∀ {S T} {as : Trace S} {bs : Trace T} → (✓ (as ++ bs)) → (✓ bs)
+++-refl-✓₂ {I}     {T} {[]}      cs        = cs
+++-refl-✓₂ {Σ W F} {T} {a ∷ as}  (.a ∷ cs) = ++-refl-✓₂ {♭ F a} {T} {as} cs
+++-refl-✓₂ {Σ V F} {T} {[]}      ([] {})
+++-refl-✓₂ {I}     {T} {() ∷ as} cs
+
+-- Concatenaton respects emptiness
+
+++-resp-[] : ∀ {S T} {as : Trace S} {bs : Trace T} →
+  (as ≡ []) → (bs ≡ []) → (as ++ bs ≡ [])
+++-resp-[] {I}     refl refl = refl
+++-resp-[] {Σ V F} refl refl = refl
 
 -- Beta and eta equivalence for concatenation.  
 -- Note that β₂ only holds when as is complete.
@@ -161,7 +188,39 @@ assoc-semantics {I}     {I}     {I}     (() ∷ as)
 ++-β₂-[] {Σ V F} {T} {a ∷ as}  ¬✓a∷as bs = ++-β₂-[] (λ ✓as → ¬✓a∷as (a ∷ ✓as)) bs
 ++-β₂-[] {I}     {T} {() ∷ as} ¬✓a∷as bs
 
--- Back respects completion
+-- If the front of a trace is incomplete then its back is empty
+
+back≡[] : ∀ {S T as} → (¬ ✓ (front {S} {T} as)) → (back {S} {T} as ≡ [])
+back≡[] {I}     {T} {as}     ¬✓as₁   = ⊥-elim (¬✓as₁ [])
+back≡[] {Σ V F} {T} {[]}     ¬✓as₁   = refl
+back≡[] {Σ V F} {T} {a ∷ as} ¬✓a∷as₁ = back≡[] (λ ✓as₁ → ¬✓a∷as₁ (a ∷ ✓as₁))
+
+-- Front respects completion, but only reflects it when T = I.
+
+front-resp-✓ :  ∀ {S T} {as : Trace (S & T)} → (✓ as) → (✓ (front {S} as))
+front-resp-✓ {I}     ✓as       = []
+front-resp-✓ {Σ V F} (a ∷ ✓as) = a ∷ front-resp-✓ ✓as
+front-resp-✓ {Σ V F} ([] {})
+
+front-refl-✓ :  ∀ {S} (as : Trace (S & I)) → (✓ (front {S} as)) → (✓ as)
+front-refl-✓ {I}     []        ✓as₁        = []
+front-refl-✓ {Σ V F} (a ∷ as)  (.a ∷ ✓as₁) = a ∷ front-refl-✓ as ✓as₁
+front-refl-✓ {I}     (() ∷ as) ✓as₁
+front-refl-✓ {Σ V F} []        ([] {})
+
+-- Back respects emptiness
+
+back-resp-[] : ∀ {S T as} → (as ≡ []) → (back {S} {T} as ≡ [])
+back-resp-[] {I}     refl = refl
+back-resp-[] {Σ V F} refl = refl
+
+-- Back respects and reflects completion
+
+back-refl-✓ :  ∀ {S T} {isΣ : IsΣ T} (as : Trace (S & T)) → (✓ (back {S} as)) → (✓ as)
+back-refl-✓ {I}             as       ✓as₂ = ✓as₂
+back-refl-✓ {Σ V F} {Σ W G} (a ∷ as) ✓as₂ = a ∷ back-refl-✓ {♭ F a} as ✓as₂
+back-refl-✓ {Σ V F} {I}  {} as       ✓as₂
+back-refl-✓ {Σ V F} {Σ W G} []       ([] {})
 
 back-resp-✓ :  ∀ {S} {T} {as : Trace (S & T)} → (✓ as) → (✓ (back {S} as))
 back-resp-✓ {I}     ✓as       = ✓as
@@ -339,6 +398,20 @@ assoc-assoc {S} {T} {U} {V} =
         ([&]-isEquiv (assoc-isEquiv {S} {T} {U}) done-isEquiv))) 
     (⟫-isEquiv (assoc-isEquiv {S} {T} {U & V}) (assoc-isEquiv {S & T} {U} {V}))
 
+-- Tensor plays nicely with associativity when f reflects completion
+
+⟦[&]⟧-++ : ∀ {S T U V} (f : Trace S → Trace T) (g : Trace U → Trace V) →
+  (∀ cs → (✓ (f cs)) → (✓ cs)) → ∀ as bs →
+    (f ⟦[&]⟧ g) (as ++ bs) ≡ (f as ++ g bs)
+⟦[&]⟧-++ {S} {T} {U} {V} f g f-refl-✓ as bs = 
+  begin
+    f (front {S} (as ++ bs)) ++ g (back {S} (as ++ bs))
+  ≡⟨ cong₂ _++_ (cong f (++-β₁ as bs)) refl ⟩
+    f as ++ g (back {S} (as ++ bs))
+  ≡⟨ ++-cong refl (λ ✓fas → cong g (++-β₂ (f-refl-✓ as ✓fas) bs)) ⟩
+    f as ++ g bs
+  ∎
+
 -- Concatenation plays nicely with associativity
 
 ⟦assoc⟧-++ : ∀ {S T U} → (as : Trace S) (bs : Trace T) (cs : Trace U) →
@@ -349,6 +422,15 @@ assoc-assoc {S} {T} {U} {V} =
 ⟦assoc⟧-++ {Σ W F}     []        bs       cs = refl
 ⟦assoc⟧-++ {Σ W F}     (a ∷ as)  bs       cs = cong (_∷_ a) (⟦assoc⟧-++ as bs cs)
 ⟦assoc⟧-++ {I}         (() ∷ as) bs       cs
+
+⟦assoc⁻¹⟧-++ : ∀ {S T U} → (as : Trace S) (bs : Trace T) (cs : Trace U) →
+  ⟦assoc⁻¹⟧ {S} ((as ++ bs) ++ cs) ≡ (as ++ (bs ++ cs))
+⟦assoc⁻¹⟧-++ {I} {I}     []        bs       cs = refl
+⟦assoc⁻¹⟧-++ {I} {Σ W G} []        []       cs = refl
+⟦assoc⁻¹⟧-++ {I} {Σ W G} []        (b ∷ bs) cs = cong (_∷_ b) (⟦assoc⁻¹⟧-++ {I} [] bs cs)
+⟦assoc⁻¹⟧-++ {Σ W F}     []        bs       cs = refl
+⟦assoc⁻¹⟧-++ {Σ W F}     (a ∷ as)  bs       cs = cong (_∷_ a) (⟦assoc⁻¹⟧-++ as bs cs)
+⟦assoc⁻¹⟧-++ {I}         (() ∷ as) bs       cs
 
 -- Front and back play well with associativity
 
