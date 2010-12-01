@@ -174,23 +174,21 @@ P ⟨&⟩ Q = buffer P Q []
 copy : ∀ {S} → (S ⇒ (S & S))
 copy = done ⟨&⟩ done
 
--- Delay
-
-delay' : ∀ {S T} {isΣ : IsΣ T} → (S ≤ T) → S ⇒ T
-delay' {I}             cs = out* cs done
-delay' {Σ V F} {Σ W G} cs = inp (♯ λ c → delay' (c ∷ cs))
-delay' {Σ V F} {I}  {} cs
-
-delay : ∀ {S} → S ⇒ S
-delay {I}     = done
-delay {Σ V F} = delay' []
-
 -- Braiding structure
+
+swap'' : ∀ {T U} → (I ≤ U) → T ⇒ (T & U)
+swap'' {I}     cs = out* cs done
+swap'' {Σ W G} cs = inp (♯ λ b → out b (swap'' cs))
+
+swap' : ∀ {S T} {isΣ : IsΣ T} {U} → (S ≤ U) → (S & T) ⇒ (T & U)
+swap' {I}             cs = swap'' cs
+swap' {Σ V F} {Σ W G} cs = inp (♯ λ c → swap' (c ∷ cs))
+swap' {Σ V F} {I}  {} cs
 
 swap : ∀ {S T} → ((S & T) ⇒ (T & S))
 swap {I}     {T}     = unit₂⁻¹
-swap {Σ V F} {I}     = unit₂ ⟫ delay
-swap {Σ V F} {Σ W G} = π₂ {Σ V F} ⟨&⟩ π₁ {Σ V F}
+swap {Σ V F} {I}     = unit₂
+swap {Σ V F} {Σ W G} = swap' {Σ V F} []
 
 -- Choice
 

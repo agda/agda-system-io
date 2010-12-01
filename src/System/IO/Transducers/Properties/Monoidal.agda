@@ -84,6 +84,14 @@ unit₁-semantics {I}     as        = refl
 unit₁-semantics {Σ V F} []        = refl
 unit₁-semantics {Σ V F} (a ∷ as)  = cong (_∷_ a) (unit₁-semantics as)
 
+⟦unit₁⁻¹⟧ : ∀ {S} → (Trace (I & S)) → (Trace S)
+⟦unit₁⁻¹⟧ as = as
+
+unit₁⁻¹-semantics : ∀ {S} → ⟦ unit₁⁻¹ {S} ⟧ ≃ ⟦unit₁⁻¹⟧ {S}
+unit₁⁻¹-semantics {I}     as        = refl
+unit₁⁻¹-semantics {Σ V F} []        = refl
+unit₁⁻¹-semantics {Σ V F} (a ∷ as)  = cong (_∷_ a) (unit₁⁻¹-semantics as)
+
 ⟦unit₂⟧ : ∀ {S} → (Trace (S & I)) → (Trace S)
 ⟦unit₂⟧ = front
 
@@ -92,6 +100,15 @@ unit₂-semantics {I}     []        = refl
 unit₂-semantics {Σ V F} []        = refl
 unit₂-semantics {Σ V F} (a ∷ as)  = cong (_∷_ a) (unit₂-semantics as)
 unit₂-semantics {I}     (() ∷ as)
+
+⟦unit₂⁻¹⟧ : ∀ {S} → (Trace S) → (Trace (S & I))
+⟦unit₂⁻¹⟧ as = as ++ []
+
+unit₂⁻¹-semantics : ∀ {S} → ⟦ unit₂⁻¹ {S} ⟧ ≃ ⟦unit₂⁻¹⟧
+unit₂⁻¹-semantics {I}     []       = refl
+unit₂⁻¹-semantics {Σ W F} []       = refl
+unit₂⁻¹-semantics {Σ W F} (a ∷ as) = cong (_∷_ a) (unit₂⁻¹-semantics as)
+unit₂⁻¹-semantics {I}     (() ∷ as)
 
 -- Semantics of associativity
 
@@ -227,6 +244,20 @@ back-resp-✓ {I}     ✓as       = ✓as
 back-resp-✓ {Σ W F} (a ∷ ✓as) = back-resp-✓ {♭ F a} ✓as
 back-resp-✓ {Σ W F} ([] {})
 
+-- Tensor plays nicely with associativity when f reflects completion
+
+⟦[&]⟧-++ : ∀ {S T U V} (f : Trace S → Trace T) (g : Trace U → Trace V) →
+  (∀ cs → (✓ (f cs)) → (✓ cs)) → ∀ as bs →
+    (f ⟦[&]⟧ g) (as ++ bs) ≡ (f as ++ g bs)
+⟦[&]⟧-++ {S} {T} {U} {V} f g f-refl-✓ as bs = 
+  begin
+    f (front {S} (as ++ bs)) ++ g (back {S} (as ++ bs))
+  ≡⟨ cong₂ _++_ (cong f (++-β₁ as bs)) refl ⟩
+    f as ++ g (back {S} (as ++ bs))
+  ≡⟨ ++-cong refl (λ ✓fas → cong g (++-β₂ (f-refl-✓ as ✓fas) bs)) ⟩
+    f as ++ g bs
+  ∎
+
 -- Tensor respects ≃
 
 [&]-resp-≃ : ∀ {S T U V} {P₁ P₂ : S ⇒ T} {Q₁ Q₂ : U ⇒ V} → 
@@ -253,51 +284,27 @@ back-resp-✓ {Σ W F} ([] {})
     as
   ∎
 
--- Tensor respects composition when g₁ reflects completion and g₂ is strict.
+-- Tensor respects composition when g₁ reflects completion
 
 ⟦[&]⟧-resp-⟦⟫⟧ : ∀ {S₁ S₂ T₁ T₂ U₁ U₂} → 
   (f₁ : Trace S₁ → Trace T₁) → (g₁ : Trace T₁ → Trace U₁) → 
     (f₂ : Trace S₂ → Trace T₂) → (g₂ : Trace T₂ → Trace U₂) → 
-      (∀ as → ✓ (g₁ as) → ✓ as) → (g₂ [] ≡ []) →
+      (∀ as → ✓ (g₁ as) → ✓ as) →
         (((f₁ ⟦⟫⟧ g₁) ⟦[&]⟧ (f₂ ⟦⟫⟧ g₂)) ≃ (f₁ ⟦[&]⟧ f₂) ⟦⟫⟧ (g₁ ⟦[&]⟧ g₂))
-⟦[&]⟧-resp-⟦⟫⟧ {S₁} {S₂} {T₁} {T₂} f₁ g₁ f₂ g₂ g₁-refl-✓ g₂-resp-[] as with ✓? (f₁ (front as))
-⟦[&]⟧-resp-⟦⟫⟧ {S₁} {S₂} {T₁} {T₂} f₁ g₁ f₂ g₂ g₁-refl-✓ g₂-resp-[] as | yes ✓f₁as₁ =
-  begin
-    g₁ (f₁ (front {S₁} as))
-      ++ g₂ (f₂ (back {S₁} as))
-  ≡⟨ cong₂ _++_ (cong g₁ (sym (++-β₁ (f₁ (front {S₁} as)) (f₂ (back {S₁} as))))) (cong g₂ (sym (++-β₂ ✓f₁as₁ (f₂ (back {S₁} as))))) ⟩
-    g₁ (front {T₁} (f₁ (front {S₁} as) ++ f₂ (back {S₁} as))) 
-      ++ g₂ (back {T₁} (f₁ (front {S₁} as) ++ f₂ (back {S₁} as)))  
-  ∎
-⟦[&]⟧-resp-⟦⟫⟧ {S₁} {S₂} {T₁} {T₂} f₁ g₁ f₂ g₂ g₁-refl-✓ g₂-resp-[] as | no ¬✓f₁as₁ = 
-  begin
-    g₁ (f₁ (front {S₁} as))
-      ++ g₂ (f₂ (back {S₁} as))
-  ≡⟨ ++-cong refl (λ ✓g₁f₁as₁ → ⊥-elim (¬✓f₁as₁ (g₁-refl-✓ (f₁ (front as)) ✓g₁f₁as₁))) ⟩
-    g₁ (f₁ (front {S₁} as))
-      ++ []
-  ≡⟨ cong₂ _++_ (cong g₁ (sym (++-β₁ (f₁ (front {S₁} as)) (f₂ (back {S₁} as))))) refl ⟩
-    g₁ (front {T₁} (f₁ (front {S₁} as) ++ f₂ (back {S₁} as)))
-      ++ []
-  ≡⟨ cong (_++_ (g₁ _)) (sym g₂-resp-[]) ⟩
-    g₁ (front {T₁} (f₁ (front {S₁} as) ++ f₂ (back {S₁} as)))
-      ++ g₂ []
-  ≡⟨ cong (_++_ (g₁ _)) (cong g₂ (sym (++-β₂-[] ¬✓f₁as₁ (f₂ (back {S₁} as))))) ⟩
-    g₁ (front {T₁} (f₁ (front {S₁} as) ++ f₂ (back {S₁} as))) 
-      ++ g₂ (back {T₁} (f₁ (front {S₁} as) ++ f₂ (back {S₁} as)))  
-  ∎
+⟦[&]⟧-resp-⟦⟫⟧ {S₁} f₁ g₁ f₂ g₂ g₁-refl-✓ as =
+  sym (⟦[&]⟧-++ g₁ g₂ g₁-refl-✓ (f₁ (front {S₁} as)) (f₂ (back {S₁} as)))
 
--- Tensor respects composition when Q₂ is strict
+-- Tensor respects composition
 
 [&]-resp-⟫ : ∀ {S₁ S₂ T₁ T₂ U₁ U₂} 
-  (P₁ : S₁ ⇒ T₁) (Q₁ : T₁ ⇒ U₁) (P₂ : S₂ ⇒ T₂) {Q₂ : T₂ ⇒ U₂} → (Strict Q₂) →
+  (P₁ : S₁ ⇒ T₁) (Q₁ : T₁ ⇒ U₁) (P₂ : S₂ ⇒ T₂) (Q₂ : T₂ ⇒ U₂) →
     ⟦ (P₁ ⟫ Q₁) [&] (P₂ ⟫ Q₂) ⟧ ≃ ⟦ (P₁ [&] P₂) ⟫ (Q₁ [&] Q₂) ⟧
-[&]-resp-⟫ P₁ Q₁ P₂ {Q₂} #Q₂ as = 
+[&]-resp-⟫ P₁ Q₁ P₂ Q₂ as = 
   begin
     ⟦ (P₁ ⟫ Q₁) [&] (P₂ ⟫ Q₂) ⟧ as
   ≡⟨ [&]-≃-⟦[&]⟧ (⟫-semantics P₁ Q₁) (⟫-semantics P₂ Q₂) as ⟩
     ((⟦ P₁ ⟧ ⟦⟫⟧ ⟦ Q₁ ⟧) ⟦[&]⟧ (⟦ P₂ ⟧ ⟦⟫⟧ ⟦ Q₂ ⟧)) as
-  ≡⟨ ⟦[&]⟧-resp-⟦⟫⟧ ⟦ P₁ ⟧ ⟦ Q₁ ⟧ ⟦ P₂ ⟧ ⟦ Q₂ ⟧ (⟦⟧-refl-✓ Q₁) (⟦⟧-resp-[] #Q₂) as ⟩
+  ≡⟨ ⟦[&]⟧-resp-⟦⟫⟧ ⟦ P₁ ⟧ ⟦ Q₁ ⟧ ⟦ P₂ ⟧ ⟦ Q₂ ⟧ (⟦⟧-refl-✓ Q₁) as ⟩
     ((⟦ P₁ ⟧ ⟦[&]⟧ ⟦ P₂ ⟧) ⟦⟫⟧ (⟦ Q₁ ⟧ ⟦[&]⟧ ⟦ Q₂ ⟧)) as
   ≡⟨ sym (⟫-≃-⟦⟫⟧ ([&]-semantics P₁ P₂) ([&]-semantics Q₁ Q₂) as) ⟩
     ⟦ P₁ [&] P₂ ⟫ Q₁ [&] Q₂ ⟧ as
@@ -398,20 +405,6 @@ assoc-assoc {S} {T} {U} {V} =
         ([&]-isEquiv (assoc-isEquiv {S} {T} {U}) done-isEquiv))) 
     (⟫-isEquiv (assoc-isEquiv {S} {T} {U & V}) (assoc-isEquiv {S & T} {U} {V}))
 
--- Tensor plays nicely with associativity when f reflects completion
-
-⟦[&]⟧-++ : ∀ {S T U V} (f : Trace S → Trace T) (g : Trace U → Trace V) →
-  (∀ cs → (✓ (f cs)) → (✓ cs)) → ∀ as bs →
-    (f ⟦[&]⟧ g) (as ++ bs) ≡ (f as ++ g bs)
-⟦[&]⟧-++ {S} {T} {U} {V} f g f-refl-✓ as bs = 
-  begin
-    f (front {S} (as ++ bs)) ++ g (back {S} (as ++ bs))
-  ≡⟨ cong₂ _++_ (cong f (++-β₁ as bs)) refl ⟩
-    f as ++ g (back {S} (as ++ bs))
-  ≡⟨ ++-cong refl (λ ✓fas → cong g (++-β₂ (f-refl-✓ as ✓fas) bs)) ⟩
-    f as ++ g bs
-  ∎
-
 -- Concatenation plays nicely with associativity
 
 ⟦assoc⟧-++ : ∀ {S T U} → (as : Trace S) (bs : Trace T) (cs : Trace U) →
@@ -496,23 +489,20 @@ unit₂-natural {S} {T} P as =
 
 ⟦assoc⟧-natural : ∀ {S S' T T' U U'} 
   (f : Trace S → Trace S') (g : Trace T → Trace T') (h : Trace U → Trace U') →
-    (∀ bs → (✓ (f bs)) → (✓ bs)) → 
-      ((f ⟦[&]⟧ (g ⟦[&]⟧ h)) ⟦⟫⟧ ⟦assoc⟧ {S'} {T'} {U'}) ≃ 
-        (⟦assoc⟧ {S} {T} {U} ⟦⟫⟧ ((f ⟦[&]⟧ g) ⟦[&]⟧ h))
-⟦assoc⟧-natural {S} {S'} {T} {T'} {U} {U'} f g h f-refl-✓ as = 
+    ((f ⟦[&]⟧ (g ⟦[&]⟧ h)) ⟦⟫⟧ ⟦assoc⟧ {S'} {T'} {U'}) ≃ 
+      (⟦assoc⟧ {S} {T} {U} ⟦⟫⟧ ((f ⟦[&]⟧ g) ⟦[&]⟧ h))
+⟦assoc⟧-natural {S} {S'} {T} {T'} {U} {U'} f g h as = 
   begin
-    ⟦assoc⟧ {S'} ((f ⟦[&]⟧ (g ⟦[&]⟧ h)) as)
-  ≡⟨ ⟦assoc⟧-++ (f (front {S} as)) (g (front {T} (back {S} as))) (h (back {T} (back {S} as))) ⟩
-    (f (front {S} as)
-      ++ g (front {T} (back {S} as)))
-        ++ h (back {T} (back {S} as))
-  ≡⟨ cong₂ _++_ (cong₂ _++_ (cong f (front-⟦assoc⟧ as)) 
-       (cong g (mid-⟦assoc⟧ {S} as)))
-         (cong h (back-⟦assoc⟧ {S} as)) ⟩
-    (f (front {S} (front {S & T} (⟦assoc⟧ {S} as))) 
-      ++ g (back {S} (front {S & T} (⟦assoc⟧ {S} as)))) 
-        ++ h (back {S & T} (⟦assoc⟧ {S} as))
-  ∎
+    ⟦assoc⟧ {S'} (f as₁ ++ g as₂ ++ h as₃)
+  ≡⟨ ⟦assoc⟧-++ (f as₁) (g as₂) (h as₃) ⟩
+    (f as₁ ++ g as₂) ++ h as₃
+  ≡⟨ cong₂ _++_ (cong₂ _++_ (cong f (front-⟦assoc⟧ as))
+       (cong g (mid-⟦assoc⟧ {S} as))) (cong h (back-⟦assoc⟧ {S} as)) ⟩
+    ((f ⟦[&]⟧ g) ⟦[&]⟧ h) ((as₁ ++ as₂) ++ as₃)
+  ∎ where
+  as₁ = front {S} as
+  as₂ = front {T} (back {S} as)
+  as₃ = back {T} (back {S} as)
 
 assoc-natural : ∀ {S S' T T' U U'} (P : S ⇒ S') (Q : T ⇒ T') (R : U ⇒ U') →
   ⟦ P [&] (Q [&] R) ⟫ assoc {S'} {T'} {U'} ⟧ ≃
@@ -522,7 +512,7 @@ assoc-natural {S} {S'} {T} {T'} {U} {U'} P Q R as =
     ⟦ P [&] (Q [&] R) ⟫ assoc {S'} {T'} {U'} ⟧ as
   ≡⟨ ⟫-≃-⟦⟫⟧ ([&]-≃-⟦[&]⟧ {P = P} ≃-refl ([&]-semantics Q R)) (assoc-semantics {S'} {T'} {U'}) as ⟩
     ((⟦ P ⟧ ⟦[&]⟧ (⟦ Q ⟧ ⟦[&]⟧ ⟦ R ⟧)) ⟦⟫⟧ ⟦assoc⟧ {S'} {T'} {U'}) as
-  ≡⟨ ⟦assoc⟧-natural ⟦ P ⟧ ⟦ Q ⟧ ⟦ R ⟧ (⟦⟧-refl-✓ P) as ⟩
+  ≡⟨ ⟦assoc⟧-natural ⟦ P ⟧ ⟦ Q ⟧ ⟦ R ⟧ as ⟩
     (⟦assoc⟧ {S} {T} {U} ⟦⟫⟧ ((⟦ P ⟧ ⟦[&]⟧ ⟦ Q ⟧) ⟦[&]⟧ ⟦ R ⟧)) as
   ≡⟨ sym (⟫-≃-⟦⟫⟧ (assoc-semantics {S} {T} {U}) ([&]-≃-⟦[&]⟧ ([&]-semantics P Q) ≃-refl) as) ⟩
     ⟦ assoc {S} {T} {U} ⟫ (P [&] Q) [&] R ⟧ as
