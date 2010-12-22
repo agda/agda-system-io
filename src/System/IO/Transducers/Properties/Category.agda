@@ -1,6 +1,6 @@
 open import Coinduction using ( ♭ )
 open import Relation.Binary.PropositionalEquality using ( _≡_ ; refl ; sym ; cong )
-open import System.IO.Transducers.Lazy using ( _⇒_ ; inp ; out ; id ; done ; _⟫_ ; ⟦_⟧ ; _≃_ ; equiv )
+open import System.IO.Transducers.Lazy using ( _⇒_ ; inp ; out ; done ; _⟫_ ; ⟦_⟧ ; _≃_ ; equiv )
 open import System.IO.Transducers.Session using ( Session ; I ; Σ ; _∼_ ; ∼-refl ; ∼-trans )
 open import System.IO.Transducers.Trace using ( Trace ; [] ; _∷_ )
 open import System.IO.Transducers.Properties.Lemmas using ( ⟦⟧-resp-∼ ; ≃-refl ; ≃-sym ; IsEquiv ; isEquiv ; ≃-equiv )
@@ -28,16 +28,14 @@ _⟦⟫⟧_ : ∀ {S T U} →
 
 ⟫-semantics : ∀ {S T U} (P : S ⇒ T) (Q : T ⇒ U) →
     (⟦ P ⟫ Q ⟧ ≃ ⟦ P ⟧ ⟦⟫⟧ ⟦ Q ⟧)
-⟫-semantics                     (id refl)  Q          as       = refl
-⟫-semantics                     (inp P)    (id refl)  as       = refl
-⟫-semantics                     (out b P)  (id refl)  as       = refl
-⟫-semantics                     (inp P)    (out c Q)  as       = cong (_∷_ c) (⟫-semantics (inp P) Q as)
-⟫-semantics                     (out b P)  (out c Q)  as       = cong (_∷_ c) (⟫-semantics (out b P) Q as)
-⟫-semantics                     (out b P)  (inp Q)    as       = ⟫-semantics P (♭ Q b) as
-⟫-semantics {Σ V F} {T} {Σ X H} (inp P)    (inp Q)    []       = refl
-⟫-semantics {Σ V F} {T} {Σ X H} (inp P)    (inp Q)    (a ∷ as) = ⟫-semantics (♭ P a) (inp Q) as
-⟫-semantics {I}                 (inp {} P) (inp Q)    as
-⟫-semantics {S}     {T} {I}     (inp P)    (inp Q {}) as
+⟫-semantics (inp P)   (inp Q)   []       = refl
+⟫-semantics (inp P)   (inp Q)   (a ∷ as) = ⟫-semantics (♭ P a) (inp Q) as
+⟫-semantics (inp P)   (out c Q) as       = cong (_∷_ c) (⟫-semantics (inp P) Q as)
+⟫-semantics (inp P)   done      as       = refl
+⟫-semantics (out b P) (inp Q)   as       = ⟫-semantics P (♭ Q b) as
+⟫-semantics (out b P) (out c Q) as       = cong (_∷_ c) (⟫-semantics (out b P) Q as)
+⟫-semantics (out b P) done      as       = refl
+⟫-semantics done      Q         as       = refl
 
 ⟫-≃-⟦⟫⟧ : ∀ {S T U} 
   {P : S ⇒ T} {f : Trace S → Trace T} {Q : T ⇒ U} {g : Trace T → Trace U} →

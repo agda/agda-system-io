@@ -5,16 +5,20 @@ open import Relation.Binary.PropositionalEquality
   using ( _≡_ ; _≢_ ; refl ; sym ; cong ; cong₂ )
 open import Relation.Nullary using ( ¬_ ; Dec ; yes ; no )
 open import System.IO.Transducers.Lazy 
-  using ( _⇒_ ; inp ; out ; id ; done ; _⟫_ ; equiv ; assoc ; assoc⁻¹ ; unit₁ ; unit₁⁻¹ ; unit₂ ; unit₂⁻¹ ;  _[&]_ ; ⟦_⟧ ; _≃_ )
+  using ( _⇒_ ; inp ; out ; done ; _⟫_ ;
+     equiv ; assoc ; assoc⁻¹ ; unit₁ ; unit₁⁻¹ ; unit₂ ; unit₂⁻¹ ;
+     _[&]_ ; ⟦_⟧ ; _≃_ )
+open import System.IO.Transducers.Reflective using ( Reflective )
 open import System.IO.Transducers.Strict using ( Strict )
 open import System.IO.Transducers.Session 
   using ( I ; Σ ; IsΣ ; _∼_ ; ∼-refl ; ∼-trans ; ∼-sym ; _&_ )
   renaming ( unit₁ to ∼-unit₁ ; unit₂ to ∼-unit₂ ; assoc to ∼-assoc )
-open import System.IO.Transducers.Trace using ( Trace ; ✓ ; [] ; _∷_ )
+open import System.IO.Transducers.Trace using ( Trace ; _✓ ; [] ; _∷_ )
 open import System.IO.Transducers.Properties.Category 
   using ( ⟦done⟧ ; done-semantics ; _⟦⟫⟧_ ; ⟫-semantics ; ⟫-≃-⟦⟫⟧ ; ⟫-resp-≃ ; done-isEquiv ; ⟫-isEquiv ; equiv-is-iso )
 open import System.IO.Transducers.Properties.Lemmas 
-  using ( ≃-refl ; ≃-sym ; ✓-tl ; ✓? ; ⟦⟧-refl-✓ ; ⟦⟧-resp-[] ; IsEquiv ; isEquiv ; ≃-equiv ; I-η)
+  using ( ≃-refl ; ≃-sym ; ✓-tl ; ✓? ; ⟦⟧-refl-✓ ; ⟦⟧-resp-[] ;
+    IsEquiv ; isEquiv ; ≃-equiv ; I-η)
 
 module System.IO.Transducers.Properties.Monoidal where
 
@@ -51,16 +55,26 @@ _⟦[&]⟧_ {S} f g as = f (front as) ++ g (back {S} as)
 
 [&]-semantics : ∀ {S T U V} (P : S ⇒ T) (Q : U ⇒ V) → 
   ⟦ P [&] Q ⟧ ≃ ⟦ P ⟧ ⟦[&]⟧ ⟦ Q ⟧
-[&]-semantics {Σ V F} {Σ W G} (inp P)    Q []       = refl
-[&]-semantics {Σ V F} {Σ W G} (inp P)    Q (a ∷ as) = [&]-semantics (♭ P a) Q as
-[&]-semantics {I}     {Σ W G} (out b P)  Q as       = cong (_∷_ b) ([&]-semantics P Q as)
-[&]-semantics {Σ V F} {Σ W G} (out b P)  Q as       = cong (_∷_ b) ([&]-semantics P Q as)
-[&]-semantics {I}             (id refl)  Q as       = refl
-[&]-semantics {Σ V F}         (id refl)  Q []       = refl
-[&]-semantics {Σ V F}         (id refl)  Q (a ∷ as) = cong (_∷_ a) ([&]-semantics (done {♭ F a}) Q as)
-[&]-semantics {I}             (inp {} P) Q as
-[&]-semantics {S}     {I}     (inp P {}) Q as
-[&]-semantics {S}     {I}     (out () P) Q as
+[&]-semantics (inp {I} P) (inp Q) [] = refl
+[&]-semantics (inp {I} P) (inp Q) (a ∷ as) = [&]-semantics (♭ P a) (inp Q) as
+[&]-semantics (inp {I} P) done [] = refl
+[&]-semantics (inp {I} P) done (a ∷ as) = [&]-semantics (♭ P a) done as
+[&]-semantics (inp {Σ V F} P) Q [] = refl
+[&]-semantics (inp {Σ V F} P) Q (a ∷ as) = [&]-semantics (♭ P a) Q as
+[&]-semantics (out b P) Q as = cong (_∷_ b) ([&]-semantics P Q as)
+[&]-semantics (done {I}) Q as = refl
+[&]-semantics (done {Σ V F}) Q [] = refl
+[&]-semantics (done {Σ V F}) Q (a ∷ as) = cong (_∷_ a) ([&]-semantics (done {♭ F a}) Q as)
+[&]-semantics (inp {I} P) (out c Q) as = 
+  begin
+    c ∷ ⟦ inp P [&] Q ⟧ as
+  ≡⟨ cong (_∷_ c) ([&]-semantics (inp P) Q as) ⟩
+    c ∷ (⟦ inp P ⟧ ⟦[&]⟧ ⟦ Q ⟧) as
+  ≡⟨ cong (_∷_ c) (cong₂ _++_ (I-η (⟦ inp P ⟧ (front as))) refl) ⟩
+    c ∷ ⟦ Q ⟧ _
+  ≡⟨ cong₂ _++_ (sym (I-η (⟦ inp P ⟧ (front as)))) refl ⟩
+    (⟦ inp P ⟧ ⟦[&]⟧ ⟦ out c Q ⟧) as
+  ∎
 
 [&]-≃-⟦[&]⟧ : ∀ {S T U V} 
   {P : S ⇒ T} {f : Trace S → Trace T} {Q : U ⇒ V} {g : Trace U → Trace V} →
@@ -143,7 +157,7 @@ assoc⁻¹-semantics {I}     {I}     {I}     (() ∷ as)
 -- Congruence for concatenation, where the rhs can assume the lhs has terminated
 
 ++-cong : ∀ {S T} {as₁ as₂ : Trace S} {bs₁ bs₂ : Trace T} →
-  (as₁ ≡ as₂) → (✓ as₁ → bs₁ ≡ bs₂) → (as₁ ++ bs₁) ≡ (as₂ ++ bs₂)
+  (as₁ ≡ as₂) → (as₁ ✓ → bs₁ ≡ bs₂) → (as₁ ++ bs₁) ≡ (as₂ ++ bs₂)
 ++-cong {I}     {T} {[]}      refl bs₁≡bs₂ = bs₁≡bs₂ []
 ++-cong {Σ V F} {T} {[]}      refl bs₁≡bs₂ = refl
 ++-cong {Σ V F} {T} {a ∷ as}  refl bs₁≡bs₂ = cong (_∷_ a) (++-cong refl (λ ✓as → bs₁≡bs₂ (a ∷ ✓as)))
@@ -151,23 +165,22 @@ assoc⁻¹-semantics {I}     {I}     {I}     (() ∷ as)
 
 -- Concatenation respects and reflects termination
 
-++-resp-✓ : ∀ {S T} {as : Trace S} {bs : Trace T} → (✓ as) → (✓ bs) → (✓ (as ++ bs))
-++-resp-✓ {I}     []         ✓bs = ✓bs
+++-resp-✓ : ∀ {S T} {as : Trace S} {bs : Trace T} → (as ✓) → (bs ✓) → (as ++ bs ✓)
+++-resp-✓         []         ✓bs = ✓bs
 ++-resp-✓ {Σ V F} (a ∷ ✓as)  ✓bs = a ∷ ++-resp-✓ ✓as ✓bs
 ++-resp-✓ {I}     (() ∷ ✓as) ✓bs
-++-resp-✓ {Σ V F} ([] {})    ✓bs
 
-++-refl-✓₁ : ∀ {S T} {as : Trace S} {bs : Trace T} → (✓ (as ++ bs)) → (✓ as)
-++-refl-✓₁ {I}     {T} {[]}      cs        = []
-++-refl-✓₁ {Σ V F} {T} {a ∷ as}  (.a ∷ cs) = a ∷ ++-refl-✓₁ cs
-++-refl-✓₁ {Σ V F} {T} {[]}      ([] {})
-++-refl-✓₁ {I}     {T} {() ∷ as} cs
+++-refl-✓₁ : ∀ {S T} {as : Trace S} {bs : Trace T} → (as ++ bs ✓) → (as ✓)
+++-refl-✓₁ {I}     {T} {[]}      ✓cs        = []
+++-refl-✓₁ {Σ V F} {T} {a ∷ as}  (.a ∷ ✓cs) = a ∷ ++-refl-✓₁ ✓cs
+++-refl-✓₁ {I}     {T} {() ∷ as} ✓cs
+++-refl-✓₁ {Σ V F} {T} {[]}      ()
 
-++-refl-✓₂ : ∀ {S T} {as : Trace S} {bs : Trace T} → (✓ (as ++ bs)) → (✓ bs)
-++-refl-✓₂ {I}     {T} {[]}      cs        = cs
-++-refl-✓₂ {Σ W F} {T} {a ∷ as}  (.a ∷ cs) = ++-refl-✓₂ {♭ F a} {T} {as} cs
-++-refl-✓₂ {Σ V F} {T} {[]}      ([] {})
+++-refl-✓₂ : ∀ {S T} {as : Trace S} {bs : Trace T} → (as ++ bs ✓) → (bs ✓)
+++-refl-✓₂ {I}     {T} {[]}      ✓cs        = ✓cs
+++-refl-✓₂ {Σ W F} {T} {a ∷ as}  (.a ∷ ✓cs) = ++-refl-✓₂ {♭ F a} {T} {as} ✓cs
 ++-refl-✓₂ {I}     {T} {() ∷ as} cs
+++-refl-✓₂ {Σ V F} {T} {[]}      ()
 
 -- Concatenaton respects emptiness
 
@@ -185,11 +198,10 @@ assoc⁻¹-semantics {I}     {I}     {I}     (() ∷ as)
 ++-β₁ {Σ V F} []        bs = refl
 ++-β₁ {Σ V F} (a ∷ as)  bs = cong (_∷_ a) (++-β₁ as bs)
 
-++-β₂ : ∀ {S T} {as : Trace S} → (✓ as) → (bs : Trace T) → (back {S} (as ++ bs) ≡ bs)
+++-β₂ : ∀ {S T} {as : Trace S} → (as ✓) → (bs : Trace T) → (back {S} (as ++ bs) ≡ bs)
 ++-β₂ {I}     []        bs = refl
 ++-β₂ {Σ V F} (a ∷ as)  bs = ++-β₂ as bs
 ++-β₂ {I}     (() ∷ as) bs
-++-β₂ {Σ V F} ([] {})   bs
 
 ++-η : ∀ {S T} (as : Trace (S & T)) → (front {S} as ++ back {S} as ≡ as)
 ++-η {I}     []       = refl
@@ -199,7 +211,7 @@ assoc⁻¹-semantics {I}     {I}     {I}     (() ∷ as)
 
 -- Beta for concatenation with an incomplete trace
 
-++-β₂-[] : ∀ {S T} {as : Trace S} → (¬ ✓ as) → (bs : Trace T) → (back {S} (as ++ bs) ≡ [])
+++-β₂-[] : ∀ {S T} {as : Trace S} → (¬ (as ✓)) → (bs : Trace T) → (back {S} (as ++ bs) ≡ [])
 ++-β₂-[] {I}     {T} {[]}      ¬✓[]   bs = ⊥-elim (¬✓[] [])
 ++-β₂-[] {Σ V F} {T} {[]}      ¬✓[]   bs = refl
 ++-β₂-[] {Σ V F} {T} {a ∷ as}  ¬✓a∷as bs = ++-β₂-[] (λ ✓as → ¬✓a∷as (a ∷ ✓as)) bs
@@ -207,23 +219,22 @@ assoc⁻¹-semantics {I}     {I}     {I}     (() ∷ as)
 
 -- If the front of a trace is incomplete then its back is empty
 
-back≡[] : ∀ {S T as} → (¬ ✓ (front {S} {T} as)) → (back {S} {T} as ≡ [])
+back≡[] : ∀ {S T as} → (¬ (front {S} {T} as ✓)) → (back {S} {T} as ≡ [])
 back≡[] {I}     {T} {as}     ¬✓as₁   = ⊥-elim (¬✓as₁ [])
 back≡[] {Σ V F} {T} {[]}     ¬✓as₁   = refl
 back≡[] {Σ V F} {T} {a ∷ as} ¬✓a∷as₁ = back≡[] (λ ✓as₁ → ¬✓a∷as₁ (a ∷ ✓as₁))
 
 -- Front respects completion, but only reflects it when T = I.
 
-front-resp-✓ :  ∀ {S T} {as : Trace (S & T)} → (✓ as) → (✓ (front {S} as))
+front-resp-✓ :  ∀ {S T} {as : Trace (S & T)} → (as ✓) → (front {S} as ✓)
 front-resp-✓ {I}     ✓as       = []
 front-resp-✓ {Σ V F} (a ∷ ✓as) = a ∷ front-resp-✓ ✓as
-front-resp-✓ {Σ V F} ([] {})
 
-front-refl-✓ :  ∀ {S} (as : Trace (S & I)) → (✓ (front {S} as)) → (✓ as)
+front-refl-✓ :  ∀ {S} (as : Trace (S & I)) → (front {S} as ✓) → (as ✓)
 front-refl-✓ {I}     []        ✓as₁        = []
 front-refl-✓ {Σ V F} (a ∷ as)  (.a ∷ ✓as₁) = a ∷ front-refl-✓ as ✓as₁
 front-refl-✓ {I}     (() ∷ as) ✓as₁
-front-refl-✓ {Σ V F} []        ([] {})
+front-refl-✓ {Σ V F} []        ()
 
 -- Back respects emptiness
 
@@ -231,23 +242,24 @@ back-resp-[] : ∀ {S T as} → (as ≡ []) → (back {S} {T} as ≡ [])
 back-resp-[] {I}     refl = refl
 back-resp-[] {Σ V F} refl = refl
 
--- Back respects and reflects completion
+-- Back reflects completion for non-trivial T
 
-back-refl-✓ :  ∀ {S T} {isΣ : IsΣ T} (as : Trace (S & T)) → (✓ (back {S} as)) → (✓ as)
+back-refl-✓ :  ∀ {S T} {isΣ : IsΣ T} (as : Trace (S & T)) → (back {S} as ✓) → (as ✓)
 back-refl-✓ {I}             as       ✓as₂ = ✓as₂
 back-refl-✓ {Σ V F} {Σ W G} (a ∷ as) ✓as₂ = a ∷ back-refl-✓ {♭ F a} as ✓as₂
 back-refl-✓ {Σ V F} {I}  {} as       ✓as₂
-back-refl-✓ {Σ V F} {Σ W G} []       ([] {})
+back-refl-✓ {Σ V F} {Σ W G} []       ()
 
-back-resp-✓ :  ∀ {S} {T} {as : Trace (S & T)} → (✓ as) → (✓ (back {S} as))
+-- Back respects completion
+
+back-resp-✓ :  ∀ {S} {T} {as : Trace (S & T)} → (as ✓) → (back {S} as ✓)
 back-resp-✓ {I}     ✓as       = ✓as
 back-resp-✓ {Σ W F} (a ∷ ✓as) = back-resp-✓ {♭ F a} ✓as
-back-resp-✓ {Σ W F} ([] {})
 
 -- Tensor plays nicely with associativity when f reflects completion
 
 ⟦[&]⟧-++ : ∀ {S T U V} (f : Trace S → Trace T) (g : Trace U → Trace V) →
-  (∀ cs → (✓ (f cs)) → (✓ cs)) → ∀ as bs →
+  (∀ cs → (f cs ✓) → (cs ✓)) → ∀ as bs →
     (f ⟦[&]⟧ g) (as ++ bs) ≡ (f as ++ g bs)
 ⟦[&]⟧-++ {S} {T} {U} {V} f g f-refl-✓ as bs = 
   begin
@@ -289,22 +301,23 @@ back-resp-✓ {Σ W F} ([] {})
 ⟦[&]⟧-resp-⟦⟫⟧ : ∀ {S₁ S₂ T₁ T₂ U₁ U₂} → 
   (f₁ : Trace S₁ → Trace T₁) → (g₁ : Trace T₁ → Trace U₁) → 
     (f₂ : Trace S₂ → Trace T₂) → (g₂ : Trace T₂ → Trace U₂) → 
-      (∀ as → ✓ (g₁ as) → ✓ as) →
+      (∀ as → (g₁ as ✓) → (as ✓)) →
         (((f₁ ⟦⟫⟧ g₁) ⟦[&]⟧ (f₂ ⟦⟫⟧ g₂)) ≃ (f₁ ⟦[&]⟧ f₂) ⟦⟫⟧ (g₁ ⟦[&]⟧ g₂))
 ⟦[&]⟧-resp-⟦⟫⟧ {S₁} f₁ g₁ f₂ g₂ g₁-refl-✓ as =
   sym (⟦[&]⟧-++ g₁ g₂ g₁-refl-✓ (f₁ (front {S₁} as)) (f₂ (back {S₁} as)))
 
 -- Tensor respects composition
 
-[&]-resp-⟫ : ∀ {S₁ S₂ T₁ T₂ U₁ U₂} 
-  (P₁ : S₁ ⇒ T₁) (Q₁ : T₁ ⇒ U₁) (P₂ : S₂ ⇒ T₂) (Q₂ : T₂ ⇒ U₂) →
-    ⟦ (P₁ ⟫ Q₁) [&] (P₂ ⟫ Q₂) ⟧ ≃ ⟦ (P₁ [&] P₂) ⟫ (Q₁ [&] Q₂) ⟧
-[&]-resp-⟫ P₁ Q₁ P₂ Q₂ as = 
+[&]-resp-⟫ : ∀ {S₁ S₂ T₁ T₂ U₁ U₂}
+  (P₁ : S₁ ⇒ T₁) {Q₁ : T₁ ⇒ U₁} (⟳Q₁ : Reflective Q₁)
+    (P₂ : S₂ ⇒ T₂) (Q₂ : T₂ ⇒ U₂) →
+      ⟦ (P₁ ⟫ Q₁) [&] (P₂ ⟫ Q₂) ⟧ ≃ ⟦ (P₁ [&] P₂) ⟫ (Q₁ [&] Q₂) ⟧
+[&]-resp-⟫ P₁ {Q₁} ⟳Q₁ P₂ Q₂ as = 
   begin
     ⟦ (P₁ ⟫ Q₁) [&] (P₂ ⟫ Q₂) ⟧ as
   ≡⟨ [&]-≃-⟦[&]⟧ (⟫-semantics P₁ Q₁) (⟫-semantics P₂ Q₂) as ⟩
     ((⟦ P₁ ⟧ ⟦⟫⟧ ⟦ Q₁ ⟧) ⟦[&]⟧ (⟦ P₂ ⟧ ⟦⟫⟧ ⟦ Q₂ ⟧)) as
-  ≡⟨ ⟦[&]⟧-resp-⟦⟫⟧ ⟦ P₁ ⟧ ⟦ Q₁ ⟧ ⟦ P₂ ⟧ ⟦ Q₂ ⟧ (⟦⟧-refl-✓ Q₁) as ⟩
+  ≡⟨ ⟦[&]⟧-resp-⟦⟫⟧ ⟦ P₁ ⟧ ⟦ Q₁ ⟧ ⟦ P₂ ⟧ ⟦ Q₂ ⟧ (⟦⟧-refl-✓ ⟳Q₁) as ⟩
     ((⟦ P₁ ⟧ ⟦[&]⟧ ⟦ P₂ ⟧) ⟦⟫⟧ (⟦ Q₁ ⟧ ⟦[&]⟧ ⟦ Q₂ ⟧)) as
   ≡⟨ sym (⟫-≃-⟦⟫⟧ ([&]-semantics P₁ P₂) ([&]-semantics Q₁ Q₂) as) ⟩
     ⟦ P₁ [&] P₂ ⟫ Q₁ [&] Q₂ ⟧ as

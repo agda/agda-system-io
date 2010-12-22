@@ -5,65 +5,53 @@ open import System.IO.Transducers.Session using ( Session ; I ; Σ ; Γ ; _/_ ; 
 
 module System.IO.Transducers.Trace where
 
-infixr 4 _≤_ _≥_ _⊑_
-infixr 5 _∷_ _++_ _++'_
+infixr 4 _≤_ _⊑_ _⊨_⊑_ _⊨_✓ _✓
+infixr 5 _∷_ _++_
 
 -- The semantics of a session is its set of traces.
 -- The name "trace" comes from process algebra,
 -- it's called a play in games semantics, or a word of an automaton.
 
 data Trace (S : Session) : Set where
-  [] : (Trace S)
-  _∷_ : (a : Γ S) → (as : Trace (S / a)) → (Trace S)
+  [] : Trace S
+  _∷_ : (a : Γ S) (as : Trace (S / a)) → (Trace S)
 
 -- Traces ending in [] at type I are completed traces
 
-data ✓ {S : Session} : (Trace S) → Set where
-  [] : {isI : IsI S} → ✓ []
-  _∷_ : (a : Γ S) → ∀ {as} → (✓ as) → (✓ (a ∷ as))
+data _⊨_✓ : ∀ S → (Trace S) → Set₁ where
+  [] : I ⊨ [] ✓
+  _∷_ : ∀ {S} a {as} → (S / a ⊨ as ✓) → (S ⊨ a ∷ as ✓)
 
--- Partial traces come with a prefix order.
+_✓ : ∀ {S} → (Trace S) → Set₁
+_✓ {S} as = S ⊨ as ✓
 
-data _⊑_ {S : Session} : (Trace S) → (Trace S) → Set where
-  [] : ∀ {as} → ([] ⊑ as)
-  _∷_ : ∀ a {as bs} → (as ⊑ bs) → (a ∷ as ⊑ a ∷ bs)
+-- Prefix order on traces
 
--- We can also provide types for partial traces which record the
--- source and target session.  There's two ways to build such traces:
--- either top-down, as paths from the root of a tree to a subtree:
+data _⊨_⊑_ : ∀ S → (Trace S) → (Trace S) → Set₁ where
+  [] : ∀ {S as} → (S ⊨ [] ⊑ as)
+  _∷_ : ∀ {S} a {as bs} → (S / a ⊨ as ⊑ bs) → (S ⊨ a ∷ as ⊑ a ∷ bs)
 
-data _≥_ : Session → Session → Set₁ where
-  [] : ∀ {S} → (S ≥ S)
-  _∷_ : ∀ {S T} a → (as : S / a ≥ T) → (S ≥ T)
+_⊑_ : ∀ {S} → (Trace S) → (Trace S) → Set₁
+_⊑_ {S} as bs = S ⊨ as ⊑ bs
 
--- or bottom-up, as paths from a subtree back to the root:
+-- For building buffers, it is useful to provide
+-- snoc traces as well as cons traces.
 
 data _≤_ : Session → Session → Set₁ where
   [] : ∀ {S} → (S ≤ S)
-  _∷_ : ∀ {S T} a → (as : S ≤ T) → (S / a ≤ T)
+  _∷_ : ∀ {S T} a (as : S ≤ T) → (S / a ≤ T)
 
--- Traces form categories, where composition is concatenation.
+-- Snoc traces form categories, where composition is concatenation.
 
-_++_ : ∀ {S T U} → (S ≥ T) → (T ≥ U) → (S ≥ U)
+_++_ : ∀ {S T U} → (S ≤ T) → (T ≤ U) → (S ≤ U)
 []       ++ bs = bs
 (a ∷ as) ++ bs = a ∷ (as ++ bs)
 
-_++'_ : ∀ {S T U} → (S ≤ T) → (T ≤ U) → (S ≤ U)
-[]       ++' bs = bs
-(a ∷ as) ++' bs = a ∷ (as ++' bs)
+-- snoc traces can be reversed to form cons traces
 
--- Trace reversal gives a natural isomorphism between the categories.
-
-revApp : ∀ {S T U} → (T ≥ S) → (T ≤ U) → (S ≤ U)
+revApp : ∀ {S T} → (S ≤ T) → (Trace S) → (Trace T)
 revApp []       bs = bs
 revApp (a ∷ as) bs = revApp as (a ∷ bs)
 
-reverse : ∀ {S T} → (T ≥ S) → (S ≤ T)
+reverse : ∀ {S T} → (S ≤ T) → (Trace T)
 reverse as = revApp as []
-
-revApp' : ∀ {S T U} → (T ≤ U) → (T ≥ S) → (U ≥ S)
-revApp' []       as = as
-revApp' (b ∷ bs) as = revApp' bs (b ∷ as)
-
-reverse' : ∀ {S T} → (S ≤ T) → (T ≥ S)
-reverse' as = revApp' as []

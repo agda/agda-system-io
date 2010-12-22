@@ -1,9 +1,10 @@
-open import Coinduction using ( ♭ )
+open import Coinduction using ( ♭ ; ♯_ )
 open import Data.Empty using ( ⊥-elim )
 open import System.IO.Transducers.Session using ( Session ; I ; Σ ; IsΣ ; Γ ; _/_ ; _∼_ )
-open import System.IO.Transducers.Trace using ( Trace ; [] ; _∷_ ; ✓ )
-open import System.IO.Transducers.Lazy using ( _⇒_ ; inp ; out ; id ; ⟦_⟧ ; _≃_ ; equiv )
-open import System.IO.Transducers.Strict using ( Strict ; inp ; id )
+open import System.IO.Transducers.Trace using ( Trace ; [] ; _∷_ ; _⊨_✓ ; _✓ )
+open import System.IO.Transducers.Lazy using ( _⇒_ ; inp ; out ; done ; ⟦_⟧ ; _≃_ ; equiv )
+open import System.IO.Transducers.Reflective using ( Reflective ; inp ; out ; done )
+open import System.IO.Transducers.Strict using ( Strict ; inp ; done )
 open import Relation.Binary.PropositionalEquality using ( _≡_ ; refl ; sym ; trans ; cong )
 open import Relation.Nullary using ( Dec ; ¬_ ; yes ; no )
 
@@ -26,19 +27,15 @@ open Relation.Binary.PropositionalEquality.≡-Reasoning
 
 -- Completion is decidable
 
-¬✓[] : ∀ {S} {isΣ : IsΣ S} → (¬ ✓ {S} [])
-¬✓[] {I}     {} []
-¬✓[] {Σ V F}    ([] {})
+✓-tl : ∀ {S a as} → (S ⊨ a ∷ as ✓) → (S / a ⊨ as ✓)
+✓-tl (a ∷ as✓) = as✓
 
-✓-tl : ∀ {S} {a : Γ S} {as : Trace (S / a)} → (✓ {S} (a ∷ as)) → (✓ as)
-✓-tl (a ∷ ✓as) = ✓as
-
-✓? : ∀ {S} (as : Trace S) → Dec (✓ as)
-✓? {I}     []                 = yes []
-✓? {Σ V F} []                 = no ¬✓[]
+✓? : ∀ {S} as → (Dec (S ⊨ as ✓))
+✓? {I}     [] = yes []
+✓? {Σ V F} [] = no (λ ())
 ✓?         (a ∷ as) with ✓? as
-✓?         (a ∷ as) | yes ✓as = yes (a ∷ ✓as)
-✓?         (a ∷ as) | no ¬✓as = no (λ ✓a∷as → ¬✓as (✓-tl ✓a∷as))
+✓?         (a ∷ as) | yes as✓ = yes (a ∷ as✓)
+✓?         (a ∷ as) | no ¬as✓ = no (λ a∷as✓ → ¬as✓ (✓-tl a∷as✓))
 
 -- Eta conversion for traces of type I
 
@@ -48,7 +45,7 @@ I-η (() ∷ as)
 
 -- All traces at type I are complete
 
-I-✓ : ∀ (as : Trace I) → (✓ as)
+I-✓ : ∀ (as : Trace I) → (as ✓)
 I-✓ [] = []
 I-✓ (() ∷ as)
 
@@ -69,53 +66,59 @@ reflective f as with ✓? as
 reflective f as | yes ✓as = f as
 reflective f as | no ¬✓as = incomplete (f as)
 
-liat-¬✓ : ∀ {S} a as → ¬ ✓ {S} (liat (a ∷ as))
-liat-¬✓ {I}     () []       []
-liat-¬✓ {Σ V F} a  []       ([] {})
+liat-¬✓ : ∀ {S} a as → ¬ (S ⊨ liat (a ∷ as) ✓)
 liat-¬✓         a  (b ∷ bs) (.a ∷ ✓cs) = liat-¬✓ b bs ✓cs
+liat-¬✓ {I}     () []       []✓
+liat-¬✓ {Σ V F} a  []       ()
 
-incomplete-¬✓ : ∀ {S} {isΣ : IsΣ S} (as : Trace S) → ¬ ✓ (incomplete as)
+incomplete-¬✓ : ∀ {S} {isΣ : IsΣ S} (as : Trace S) → ¬ (incomplete as ✓)
 incomplete-¬✓ as with ✓? as
 incomplete-¬✓ {I}  {} [] | yes []
-incomplete-¬✓ {Σ V F} [] | yes ([] {})
+incomplete-¬✓ {Σ V F} [] | yes ()
 incomplete-¬✓ (a ∷ as)   | yes ✓a∷as = liat-¬✓ a as
 incomplete-¬✓ as         | no ¬✓as = ¬✓as
 
-reflective-refl-✓ : ∀ {S T} {isΣ : IsΣ T} (f : Trace S → Trace T) as → (✓ (reflective f as)) → (✓ as)
+reflective-refl-✓ : ∀ {S T} {isΣ : IsΣ T} (f : Trace S → Trace T) as → (reflective f as ✓) → (as ✓)
 reflective-refl-✓             f as ✓bs with ✓? as 
 reflective-refl-✓             f as ✓bs | yes ✓as = ✓as
 reflective-refl-✓ {S} {Σ V F} f as ✓bs | no ¬✓as = ⊥-elim (incomplete-¬✓ (f as) ✓bs)
 reflective-refl-✓ {S} {I}  {} f as ✓bs | no ¬✓as
 
-reflective-≡-✓ : ∀ {S T} (f : Trace S → Trace T) {as} → (✓ as) → (reflective f as ≡ f as)
+reflective-≡-✓ : ∀ {S T} (f : Trace S → Trace T) {as} → (as ✓) → (reflective f as ≡ f as)
 reflective-≡-✓ f {as} ✓as with ✓? as
 reflective-≡-✓ f {as} ✓as | yes _   = refl
 reflective-≡-✓ f {as} ✓as | no ¬✓as = ⊥-elim (¬✓as ✓as)
 
--- All transducers respect completed traces
+-- All transducers respect completion
 
-⟦⟧-resp-✓ : ∀ {S T} (P : S ⇒ T) as → (✓ as) → (✓ (⟦ P ⟧ as))
-⟦⟧-resp-✓ {Σ V F} (inp P)    (a ∷ as) (.a ∷ ✓as) = ⟦⟧-resp-✓ (♭ P a) as ✓as
-⟦⟧-resp-✓         (out b P)  as       ✓as        = b ∷ ⟦⟧-resp-✓ P as ✓as
-⟦⟧-resp-✓         (id refl)  as       ✓as        = ✓as
-⟦⟧-resp-✓ {I}     (inp {} P) as       ✓as
-⟦⟧-resp-✓ {Σ V F} (inp P)    []       ([] {})
+⟦⟧-resp-✓ : ∀ {S T} (P : S ⇒ T) as → (as ✓) → (⟦ P ⟧ as ✓)
+⟦⟧-resp-✓ (inp P)    (a ∷ as) (.a ∷ ✓as) = ⟦⟧-resp-✓ (♭ P a) as ✓as
+⟦⟧-resp-✓ (out b P)  as       ✓as        = b ∷ ⟦⟧-resp-✓ P as ✓as
+⟦⟧-resp-✓ done       as       ✓as        = ✓as
+⟦⟧-resp-✓ (inp P)    []       ()
 
--- All transducers reflect completed traces
+-- Reflective transducers reflect completion
 
-⟦⟧-refl-✓ : ∀ {S T} (P : S ⇒ T) as → (✓ (⟦ P ⟧ as)) → (✓ as)
-⟦⟧-refl-✓ {Σ V F}         (inp P)    (a ∷ as) bs        = a ∷ ⟦⟧-refl-✓ (♭ P a) as bs
-⟦⟧-refl-✓                 (out b P)  as       (.b ∷ bs) = ⟦⟧-refl-✓ P as bs
-⟦⟧-refl-✓                 (id refl)  as       bs        = bs
-⟦⟧-refl-✓ {I}             (inp {} P) as       bs
-⟦⟧-refl-✓ {Σ V F} {I}     (inp P {}) as       bs
-⟦⟧-refl-✓ {Σ V F} {Σ W G} (inp P)    []       ([] {})
+⟦⟧-refl-✓ : ∀ {S T} {P : S ⇒ T} → (Reflective P) → ∀ as → (⟦ P ⟧ as ✓) → (as ✓)
+⟦⟧-refl-✓ (inp ⟳P)   (a ∷ as) bs✓ = a ∷ ⟦⟧-refl-✓ (♭ ⟳P a) as bs✓
+⟦⟧-refl-✓ (out b ⟳P) as       bs✓ = ⟦⟧-refl-✓ ⟳P as (✓-tl bs✓)
+⟦⟧-refl-✓ done       as       bs✓ = bs✓
+⟦⟧-refl-✓ (inp ⟳P)   []       ()
+
+-- Any transducer which reflects completion is reflective
+
+⟦⟧-refl-✓⁻¹ : ∀ {S T} (P : S ⇒ T) → (∀ as → (⟦ P ⟧ as ✓) → (as ✓)) → (Reflective P)
+⟦⟧-refl-✓⁻¹ {Σ V F} {Σ W G} (inp P)   H = inp (♯ λ a → ⟦⟧-refl-✓⁻¹ (♭ P a) (λ as → λ bs✓ → ✓-tl (H (a ∷ as) bs✓)))
+⟦⟧-refl-✓⁻¹                 (out b P) H = out b (⟦⟧-refl-✓⁻¹ P (λ as bs✓ → H as (b ∷ bs✓)))
+⟦⟧-refl-✓⁻¹                 done      H = done 
+⟦⟧-refl-✓⁻¹ {Σ V F} {I}     (inp P)   H with H [] []
+⟦⟧-refl-✓⁻¹ {Σ V F} {I}     (inp P)   H | ()
 
 -- Strict transducers respect emptiness.
 
 ⟦⟧-resp-[] : ∀ {S T} {P : S ⇒ T} → (Strict P) → (⟦ P ⟧ [] ≡ [])
-⟦⟧-resp-[] (inp P)   = refl
-⟦⟧-resp-[] (id refl) = refl
+⟦⟧-resp-[] (inp P) = refl
+⟦⟧-resp-[] done    = refl
 
 -- Any transducer which respects emptiness is strict.
 
@@ -123,7 +126,7 @@ reflective-≡-✓ f {as} ✓as | no ¬✓as = ⊥-elim (¬✓as ✓as)
 ⟦⟧-resp-[]⁻¹ (inp P)   H = inp P
 ⟦⟧-resp-[]⁻¹ (out b P) H with H refl
 ⟦⟧-resp-[]⁻¹ (out b P) H | ()
-⟦⟧-resp-[]⁻¹ (id refl) H = id refl
+⟦⟧-resp-[]⁻¹ done      H = done
 
 -- Coherence wrt ∼
 

@@ -2,13 +2,15 @@ open import Coinduction using ( ♭ )
 open import Data.Empty using ( ⊥-elim )
 open import Data.Sum using ( _⊎_ ; inj₁ ; inj₂ )
 open import System.IO.Transducers.Lazy 
-  using ( _⇒_ ; inp ; out ; id ; done ; ⟦_⟧ ; _≃_ ; out* ;
+  using ( _⇒_ ; inp ; out ; done ; ⟦_⟧ ; _≃_ ; out' ; out* ;
      _⟫_ ;_[&]_ ; unit₁ ; unit₂ ; assoc ; assoc⁻¹ ; swap'' ; swap' ; swap )
+open import System.IO.Transducers.Reflective using ( Reflective )
 open import System.IO.Transducers.Strict using ( Strict )
 open import System.IO.Transducers.Session using ( I ; Σ ; IsΣ ; _&_ )
-open import System.IO.Transducers.Trace using ( Trace ; ✓ ; _≤_ ; [] ; _∷_ )
+open import System.IO.Transducers.Trace 
+  using ( Trace ; _✓ ; _≤_ ; [] ; _∷_ ; revApp )
 open import System.IO.Transducers.Properties.Lemmas
-  using ( ✓? ; ¬✓[] ; I-✓ ; I-η ; ⟦⟧-resp-✓ ; ⟦⟧-refl-✓ ; ⟦⟧-resp-[] )
+  using ( ✓? ; I-✓ ; I-η ; ⟦⟧-resp-✓ ; ⟦⟧-refl-✓ ; ⟦⟧-resp-[] )
 open import System.IO.Transducers.Properties.Category 
   using ( ⟦done⟧ ; _⟦⟫⟧_ ; ⟫-≃-⟦⟫⟧ ; done-semantics )
 open import System.IO.Transducers.Properties.Monoidal 
@@ -29,17 +31,14 @@ open Relation.Binary.PropositionalEquality.≡-Reasoning
 
 -- Semantics of out*
 
-revApp : ∀ {S T} → (S ≤ T) → (Trace S) → (Trace T)
-revApp []       bs = bs
-revApp (a ∷ as) bs = revApp as (a ∷ bs)
-
 ⟦out*⟧ : ∀ {S T U} → (T ≤ U) → (Trace S → Trace T) → (Trace S → Trace U)
 ⟦out*⟧ cs f as = revApp cs (f as)
 
 out*-semantics : ∀ {S T U} (cs : T ≤ U) (P : S ⇒ T) →
   ⟦ out* cs P ⟧ ≃ ⟦out*⟧ cs ⟦ P ⟧
-out*-semantics [] P as = refl
-out*-semantics (c ∷ cs) P as = out*-semantics cs (out c P) as
+out*-semantics []                 P as = refl
+out*-semantics (_∷_ {Σ V F} c cs) P as = out*-semantics cs (out c P) as
+out*-semantics (_∷_ {I}    () cs) P as
 
 -- Semantics of swap
 
@@ -71,13 +70,13 @@ swap-semantics {Σ V F} {Σ W G} as = swap'-semantics {Σ V F} [] as
 
 -- Swap reflects completion
 
-⟦swap⟧-refl-✓ : ∀ {S T} as → (✓ (⟦swap⟧ {S} {T} as)) → (✓ as)
+⟦swap⟧-refl-✓ : ∀ {S T} as → (⟦swap⟧ {S} {T} as ✓) → (as ✓)
 ⟦swap⟧-refl-✓ {S} {I}     as ✓bs = front-refl-✓ {S} as (++-refl-✓₂ {I} {S} {back {S} as} ✓bs)
 ⟦swap⟧-refl-✓ {S} {Σ W G} as ✓bs = back-refl-✓ {S} as (++-refl-✓₁ {Σ W G} ✓bs)
 
 -- Swap plays nicely with concatenation
 
-⟦swap⟧-++ : ∀ {S T} (as : Trace S) (bs : Trace T) → (✓ as ⊎ bs ≡ []) →  
+⟦swap⟧-++ : ∀ {S T} (as : Trace S) (bs : Trace T) → (as ✓ ⊎ bs ≡ []) →  
   ⟦swap⟧ {S} {T} (as ++ bs) ≡ bs ++ as
 ⟦swap⟧-++ as bs ✓as/bs≡[] with ✓? as
 ⟦swap⟧-++ as bs ✓as/bs≡[]    | yes ✓as = cong₂ _++_ (++-β₂ ✓as bs) (++-β₁ as bs)
@@ -87,8 +86,8 @@ swap-semantics {Σ V F} {Σ W G} as = swap'-semantics {Σ V F} [] as
 -- Swap is natural when f respects completion, and g reflects completion and is strict
 
 ⟦swap⟧-natural : ∀ {S T U V} → (f : Trace S → Trace T) → (g : Trace U → Trace V) →
-  (∀ as → (✓ as) → (✓ (f as))) → 
-    (∀ as → (✓ (g as)) → (✓ as)) → (g [] ≡ []) →
+  (∀ as → (as ✓) → (f as ✓)) → 
+    (∀ as → ((g as ✓)) → (as ✓)) → (g [] ≡ []) →
       (f ⟦[&]⟧ g ⟦⟫⟧ ⟦swap⟧ {T} {V}) ≃ (⟦swap⟧ {S} {U} ⟦⟫⟧ g ⟦[&]⟧ f)
 ⟦swap⟧-natural {S} {T} {U} {V} f g f-resp-✓ g-refl-✓ g-resp-[] as =
   begin
@@ -100,19 +99,20 @@ swap-semantics {Σ V F} {Σ W G} as = swap'-semantics {Σ V F} [] as
   ∎ where
   as₁ = front {S} as
   as₂ = back {S} as
-  ✓fas₁/gas₂≡[] : ✓ (f as₁) ⊎ g as₂ ≡ []
+  ✓fas₁/gas₂≡[] : f as₁ ✓ ⊎ g as₂ ≡ []
   ✓fas₁/gas₂≡[] with ✓? as₁
   ✓fas₁/gas₂≡[] | yes ✓as₁ = inj₁ (f-resp-✓ as₁ ✓as₁)
   ✓fas₁/gas₂≡[] | no ¬✓as₁ = inj₂ (trans (cong g (back≡[] ¬✓as₁)) g-resp-[])
 
-swap-natural : ∀ {S T U V} (P : S ⇒ T) {Q : U ⇒ V} → (Strict Q) →
-  ⟦ P [&] Q ⟫ swap {T} {V} ⟧ ≃ ⟦ swap {S} {U} ⟫ Q [&] P ⟧
-swap-natural {S} {T} {U} {V} P {Q} #Q as =
+swap-natural : ∀ {S T U V} (P : S ⇒ T) {Q : U ⇒ V} →
+  (Reflective Q) → (Strict Q) →
+    ⟦ P [&] Q ⟫ swap {T} {V} ⟧ ≃ ⟦ swap {S} {U} ⟫ Q [&] P ⟧
+swap-natural {S} {T} {U} {V} P {Q} ⟳Q #Q as =
   begin
     ⟦ P [&] Q ⟫ swap {T} {V} ⟧ as
   ≡⟨ ⟫-≃-⟦⟫⟧ ([&]-semantics P Q) (swap-semantics {T} {V}) as ⟩
     (⟦ P ⟧ ⟦[&]⟧ ⟦ Q ⟧ ⟦⟫⟧ ⟦swap⟧ {T} {V}) as
-  ≡⟨ ⟦swap⟧-natural ⟦ P ⟧ ⟦ Q ⟧ (⟦⟧-resp-✓ P) (⟦⟧-refl-✓ Q) (⟦⟧-resp-[] #Q) as ⟩
+  ≡⟨ ⟦swap⟧-natural ⟦ P ⟧ ⟦ Q ⟧ (⟦⟧-resp-✓ P) (⟦⟧-refl-✓ ⟳Q) (⟦⟧-resp-[] #Q) as ⟩
     (⟦swap⟧ {S} {U} ⟦⟫⟧ ⟦ Q ⟧ ⟦[&]⟧ ⟦ P ⟧) as
   ≡⟨ sym (⟫-≃-⟦⟫⟧ (swap-semantics {S} {U}) ([&]-semantics Q P) as) ⟩
     ⟦ swap {S} {U} ⟫ Q [&] P ⟧ as
@@ -177,12 +177,12 @@ swap-unit₂ {S} as =
   as₁ = front {S} as
   as₂ = front {T} (back {S} as)
   as₃ = back {T} (back {S} as)
-  ✓as₁₂/as₃≡[] : ✓ (as₁ ++ as₂) ⊎ as₃ ≡ []
+  ✓as₁₂/as₃≡[] : as₁ ++ as₂ ✓ ⊎ as₃ ≡ []
   ✓as₁₂/as₃≡[] with ✓? as₁ | ✓? as₂
   ✓as₁₂/as₃≡[] | yes ✓as₁ | yes ✓as₂ = inj₁ (++-resp-✓ ✓as₁ ✓as₂)
   ✓as₁₂/as₃≡[] | _        | no ¬✓as₂ = inj₂ (back≡[] ¬✓as₂)
   ✓as₁₂/as₃≡[] | no ¬✓as₁ | _        = inj₂ (back-resp-[] {T} (back≡[] ¬✓as₁))
-  ✓as₁/as₃≡[] : ✓ as₁ ⊎ as₃ ≡ []
+  ✓as₁/as₃≡[] : as₁ ✓ ⊎ as₃ ≡ []
   ✓as₁/as₃≡[] with ✓? as₁
   ✓as₁/as₃≡[] | yes ✓as₁ = inj₁ ✓as₁
   ✓as₁/as₃≡[] | no ¬✓as₁ = inj₂ (back-resp-[] {T} (back≡[] ¬✓as₁))
@@ -227,11 +227,11 @@ swap-assoc {S} {T} {U} as =
   as₁ = front {S} (front {S & T} as)
   as₂ = back {S} (front {S & T} as)
   as₃ = back {S & T} as
-  ✓as₁/as₂₃≡[] : ✓ as₁ ⊎ as₂ ++ as₃ ≡ []
+  ✓as₁/as₂₃≡[] : as₁ ✓ ⊎ as₂ ++ as₃ ≡ []
   ✓as₁/as₂₃≡[] with ✓? as₁
   ✓as₁/as₂₃≡[] | yes ✓as₁ = inj₁ ✓as₁
   ✓as₁/as₂₃≡[] | no ¬✓as₁ = inj₂ (++-resp-[] (back≡[] ¬✓as₁) (back≡[] (λ ✓as₁₂ → ¬✓as₁ (front-resp-✓ ✓as₁₂))))
-  ✓as₁/as₃≡[] : ✓ as₁ ⊎ as₃ ≡ []
+  ✓as₁/as₃≡[] : as₁ ✓ ⊎ as₃ ≡ []
   ✓as₁/as₃≡[] with ✓? as₁
   ✓as₁/as₃≡[] | yes ✓as₁ = inj₁ ✓as₁
   ✓as₁/as₃≡[] | no ¬✓as₁ = inj₂ (back≡[] (λ ✓as₁₂ → ¬✓as₁ (front-resp-✓ ✓as₁₂)))

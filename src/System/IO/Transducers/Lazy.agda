@@ -8,7 +8,7 @@ open import Data.Unit using ( ⊤ ; tt )
 open import System.IO.Transducers.Session
   using ( Session ; I ; Σ ; _∼_ ; ∼-sym ; Γ ; _/_ ; IsΣ ; IsΣ-≡ ; ⟨_⟩ ; _&_ ; ¿ ; _+_  )
   renaming ( unit₁ to ∼-unit₁ ; unit₂ to ∼-unit₂ ; assoc to ∼-assoc )
-open import System.IO.Transducers.Trace using ( _≥_ ; _≤_ ; Trace ; _⊑_ ; [] ; _∷_ )
+open import System.IO.Transducers.Trace using ( _≤_ ; _⊑_ ; Trace ; [] ; _∷_ )
 open import Relation.Binary.PropositionalEquality using ( _≡_ ; refl )
 open import Relation.Nullary using ( Dec ; yes ; no )
 
@@ -33,23 +33,42 @@ infixr 6 _⟫_
 infixr 8 _[&]_ _⟨&⟩_ _⟨+⟩_ _⟨¿⟩_
 
 -- Lazy transducers, which may perform output before input.
--- A bit of hoop-jumping here, to get S ⇒ T to be a Set rather than a Set₁.
 
-data _⇒_ (S T : Session) : Set where
-  inp : {ΣS : IsΣ S} → ∞ (∀ a → (S / a ⇒ T)) → {ΣT : IsΣ T} → (S ⇒ T)
-  out : ∀ b → (S ⇒ T / b) → (S ⇒ T)
-  id : (S ≡ T) → (S ⇒ T)
+data _⇒_ : (S T : Session) → Set₁ where
+  inp : ∀ {T A V F} → ∞ ((a : A) → (♭ F a ⇒ T)) → (Σ V F ⇒ T)
+  out : ∀ {S B W G} → (b : B) → (S ⇒ ♭ G b) → (S ⇒ Σ W G)
+  done : ∀ {S} → (S ⇒ S)
 
--- Identity transducer
+-- Semantically, we only need done at type I,
+-- we have it at all types just for efficiency.
 
-done : ∀ {S} → (S ⇒ S)
-done = id refl
+data _⤇_ : (S T : Session) → Set₁ where
+  inp : ∀ {T A V F} → ∞ ((a : A) → (♭ F a ⤇ T)) → (Σ V F ⤇ T)
+  out : ∀ {S B W G} → (b : B) → (S ⤇ ♭ G b) → (S ⤇ Σ W G)
+  done : (I ⤇ I)
+
+ι : ∀ {S T} → (S ⤇ T) → (S ⇒ T)
+ι (inp P)   = inp (♯ λ a → ι (♭ P a))
+ι (out b P) = out b (ι P)
+ι done      = done
+
+ι⁻¹ : ∀ {S T} → (S ⇒ T) → (S ⤇ T)
+ι⁻¹ (inp P)        = inp (♯ λ a → ι⁻¹ (♭ P a))
+ι⁻¹ (out b P)      = out b (ι⁻¹ P)
+ι⁻¹ (done {I})     = done
+ι⁻¹ (done {Σ V F}) = inp (♯ λ a → out a (ι⁻¹ done))
+
+-- Helper functions to build transducers in terms of Γ and _/_
+
+out' : ∀ {S T} b → (S ⇒ T / b) → (S ⇒ T)
+out' {S} {I}     () P
+out' {S} {Σ W G} b  P = out b P
 
 -- Helper function to output a whole trace.
 
 out* : ∀ {S T U} → (T ≤ U) → (S ⇒ T) → (S ⇒ U)
 out* []       P = P
-out* (b ∷ bs) P = out* bs (out b P)
+out* (b ∷ bs) P = out* bs (out' b P)
 
 -- Semantics as a function from partial traces to partial traces
 
@@ -57,7 +76,7 @@ out* (b ∷ bs) P = out* bs (out b P)
 ⟦ inp P   ⟧ []       = []
 ⟦ inp P   ⟧ (a ∷ as) = ⟦ ♭ P a ⟧ as
 ⟦ out b P ⟧ as       = b ∷ ⟦ P ⟧ as
-⟦ id refl ⟧ as       = as
+⟦ done    ⟧ as       = as
 
 -- Extensional equivalence on trace functions
 
@@ -66,7 +85,7 @@ f ≃ g = ∀ as → f as ≡ g as
 
 -- Improvement order on trace functions
 
-_≲_ : ∀ {S T} → (f g : Trace S → Trace T) → Set
+_≲_ : ∀ {S T} → (f g : Trace S → Trace T) → Set₁
 f ≲ g = ∀ as → f as ⊑ g as
 
 -- Equivalent sessions give rise to a transducer
@@ -82,25 +101,21 @@ equiv (Σ V F) = inp (♯ λ a → out a (equiv (♭ F a)))
 -- we prioritize output over input.
 
 _⟫_ : ∀ {S T U} → (S ⇒ T) → (T ⇒ U) → (S ⇒ U)
-_⟫_                     (id refl)  Q         = Q
-_⟫_                     P          (id refl) = P
-_⟫_                     P          (out b Q) = out b (P ⟫ Q)
-_⟫_                     (out b P)  (inp Q)   = P ⟫ ♭ Q b
-_⟫_ {Σ V F} {T} {Σ X H} (inp P)    Q         = inp (♯ λ a → ♭ P a ⟫ Q)
-_⟫_ {Σ V F} {T} {I}     (inp P)    (inp Q {})
-_⟫_ {I}                 (inp {} P) Q
+done    ⟫ Q       = Q
+P       ⟫ done    = P
+P       ⟫ out b Q = out b (P ⟫ Q)
+out b P ⟫ inp Q   = P ⟫ ♭ Q b
+inp P   ⟫ Q       = inp (♯ λ a → ♭ P a ⟫ Q)
 
 -- The category has monoidal structure given by &, with
 -- action on morphisms:
  
 _[&]_ : ∀ {S T U V} → (S ⇒ T) → (U ⇒ V) → ((S & U) ⇒ (T & V))
-_[&]_ {Σ V F}  {Σ W G} (inp P)    Q = inp (♯ λ a → ♭ P a [&] Q)
-_[&]_ {S}      {Σ W G} (out b P)  Q = out b (P [&] Q)
-_[&]_ {I}              (id refl)  Q = Q
-_[&]_ {Σ V F}          (id refl)  Q = inp (♯ λ a → out a (done {♭ F a} [&] Q))
-_[&]_ {I}              (inp {} P) Q
-_[&]_ {S}      {I}     (inp P {}) Q
-_[&]_ {S}      {I}     (out () P) Q
+inp {I} P    [&] out c Q = out c (inp P [&] Q)
+inp P        [&] Q       = inp (♯ λ a → ♭ P a [&] Q)
+out b P      [&] Q       = out b (P [&] Q)
+done {I}     [&] Q       = Q
+done {Σ V F} [&] Q       = inp (♯ λ a → out a (done {♭ F a} [&] Q))
 
 -- Units for &
 
@@ -124,22 +139,19 @@ assoc {S} = equiv (∼-assoc {S})
 assoc⁻¹ : ∀ {S T U} → ((S & T) & U) ⇒ (S & (T & U))
 assoc⁻¹ {S} = equiv (∼-sym (∼-assoc {S}))
 
--- Projections (for nontrival sessions).
+-- Projections
 
-π₁' : ∀ {S S' T U} a → (S' ≡ S / a) → (S ≡ U) → (S' & T ⇒ U)
-π₁' {Σ V F} {I}     {I}     a  I≡Fa   refl = out a (id I≡Fa)
-π₁' {Σ V F} {I}     {Σ X H} a  I≡Fa   refl = inp (♯ λ b → π₁' a I≡Fa refl)
-π₁' {Σ V F} {Σ W G}         a  ΣWG≡Fa refl = out a (inp (♯ λ b → π₁' b refl ΣWG≡Fa) {IsΣ-≡ ΣWG≡Fa})
-π₁' {I}                     () S'≡S/a refl
+discard : ∀ {S} → (S ⇒ I)
+discard {I}     = done
+discard {Σ V F} = inp (♯ λ a → discard)
 
-π₁ : ∀ {S T} {isΣ : IsΣ S} → (S & T ⇒ S)
-π₁ {Σ V F} = inp (♯ λ a → π₁' a refl refl)
-π₁ {I} {T} {}
+π₁ : ∀ {S T} → (S & T ⇒ S)
+π₁ {I}     = discard
+π₁ {Σ V F} = inp (♯ λ a → out a π₁)
 
-π₂ : ∀ {S T} {isΣ : IsΣ T} → (S & T ⇒ T)
-π₂ {I}             = done
-π₂ {Σ V F} {Σ W G} = inp (♯ λ a → π₂ {♭ F a})
-π₂ {Σ V F} {I} {}
+π₂ : ∀ {S T} → (S & T ⇒ T)
+π₂ {I}     = done
+π₂ {Σ V F} = inp (♯ λ a → π₂ {♭ F a})
 
 -- The category is almost cartesian, at the cost of
 -- buffering.  WARNING.  BUFFERING.  This is bad.  Do not do this.
@@ -154,17 +166,14 @@ assoc⁻¹ {S} = equiv (∼-sym (∼-assoc {S}))
 -- is usually smaller than input.
 
 buffer : ∀ {S T U V} → (S ⇒ T) → (S ⇒ U) → (U ≤ V) → (S ⇒ T & V)
-buffer {I}             (inp {} P) Q         cs
-buffer {Σ V F} {I}     (inp P)    Q         cs = out* cs Q
-buffer {Σ V F} {Σ W G} (inp P)    (inp Q)   cs = inp (♯ λ a → buffer (♭ P a) (♭ Q a) cs)
-buffer {Σ V F} {Σ W G} (inp P)    (out c Q) cs = buffer (inp P) Q (c ∷ cs)
-buffer {Σ V F} {Σ W G} (inp P)    (id refl) cs = inp (♯ λ c → buffer (♭ P c) done (c ∷ cs))
-buffer {S}     {I}     (out () P) Q         cs
-buffer {S}     {Σ W G} (out b P)  Q         cs = out b (buffer P Q cs)
-buffer {I}             (id refl)  Q         cs = out* cs Q
-buffer {Σ V F}         (id refl)  (inp Q)   cs = inp (♯ λ a → out a (buffer done (♭ Q a) cs))
-buffer {Σ V F}         (id refl)  (out c Q) cs = buffer done Q (c ∷ cs)
-buffer {Σ V F}         (id refl)  (id refl) cs = inp (♯ λ c → out c (buffer done done (c ∷ cs)))
+buffer (inp P)        (inp Q)   cs = inp (♯ λ a → buffer (♭ P a) (♭ Q a) cs)
+buffer (inp P)        (out c Q) cs = buffer (inp P) Q (c ∷ cs)
+buffer (inp P)        done      cs = inp (♯ λ c → buffer (♭ P c) done (c ∷ cs))
+buffer (out b P)      Q         cs = out b (buffer P Q cs)
+buffer (done {I})     Q         cs = out* cs Q
+buffer (done {Σ V F}) (inp Q)   cs = inp (♯ λ a → out a (buffer done (♭ Q a) cs))
+buffer (done {Σ V F}) (out c Q) cs = buffer done Q (c ∷ cs)
+buffer (done {Σ V F}) done      cs = inp (♯ λ c → out c (buffer done done (c ∷ cs)))
 
 _⟨&⟩_ : ∀ {S T U} → (S ⇒ T) → (S ⇒ U) → (S ⇒ T & U)
 P ⟨&⟩ Q = buffer P Q []
