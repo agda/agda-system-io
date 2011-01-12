@@ -1,7 +1,7 @@
 open import Coinduction using ( ♭ ; ♯_ )
 open import Data.Empty using ( ⊥-elim )
 open import System.IO.Transducers.Session using ( Session ; I ; Σ ; IsΣ ; Γ ; _/_ ; _∼_ )
-open import System.IO.Transducers.Trace using ( Trace ; [] ; _∷_ ; _⊨_✓ ; _✓ )
+open import System.IO.Transducers.Trace using ( Trace ; [] ; _∷_ ; _⊨_✓ ; _✓ ; _⊑_ )
 open import System.IO.Transducers.Lazy using ( _⇒_ ; inp ; out ; done ; ⟦_⟧ ; _≃_ ; equiv )
 open import System.IO.Transducers.Reflective using ( Reflective ; inp ; out ; done )
 open import System.IO.Transducers.Strict using ( Strict ; inp ; done )
@@ -49,6 +49,16 @@ I-✓ : ∀ (as : Trace I) → (as ✓)
 I-✓ [] = []
 I-✓ (() ∷ as)
 
+-- Cons is invertable
+
+∷-refl-≡₁ : ∀ {S a b} {as bs : Trace S} {cs ds} → 
+  (as ≡ a ∷ cs) → (bs ≡ b ∷ ds) → (as ≡ bs) → (a ≡ b)
+∷-refl-≡₁ refl refl refl = refl
+
+∷-refl-≡₂ : ∀ {S a} {as bs : Trace S} {cs ds} → 
+  (as ≡ a ∷ cs) → (bs ≡ a ∷ ds) → (as ≡ bs) → (cs ≡ ds)
+∷-refl-≡₂ refl refl refl = refl
+
 -- Make a function reflective
 
 liat : ∀ {S} → (Trace S) → (Trace S)
@@ -88,6 +98,14 @@ reflective-≡-✓ : ∀ {S T} (f : Trace S → Trace T) {as} → (as ✓) → (
 reflective-≡-✓ f {as} ✓as with ✓? as
 reflective-≡-✓ f {as} ✓as | yes _   = refl
 reflective-≡-✓ f {as} ✓as | no ¬✓as = ⊥-elim (¬✓as ✓as)
+
+-- All transducers are monotone
+
+⟦⟧-mono :  ∀ {S T} (P : S ⇒ T) as bs → (as ⊑ bs) → (⟦ P ⟧ as ⊑ ⟦ P ⟧ bs)
+⟦⟧-mono (inp P)   .[]       bs        []          = []
+⟦⟧-mono (inp P)   (.a ∷ as) (.a ∷ bs) (a ∷ as⊑bs) = ⟦⟧-mono (♭ P a) as bs as⊑bs
+⟦⟧-mono (out b P) as        bs        as⊑bs       = b ∷ (⟦⟧-mono P as bs as⊑bs)
+⟦⟧-mono done      as        bs        as⊑bs       = as⊑bs
 
 -- All transducers respect completion
 

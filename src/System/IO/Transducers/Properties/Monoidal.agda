@@ -17,7 +17,7 @@ open import System.IO.Transducers.Trace using ( Trace ; _✓ ; [] ; _∷_ )
 open import System.IO.Transducers.Properties.Category 
   using ( ⟦done⟧ ; done-semantics ; _⟦⟫⟧_ ; ⟫-semantics ; ⟫-≃-⟦⟫⟧ ; ⟫-resp-≃ ; done-isEquiv ; ⟫-isEquiv ; equiv-is-iso )
 open import System.IO.Transducers.Properties.Lemmas 
-  using ( ≃-refl ; ≃-sym ; ✓-tl ; ✓? ; ⟦⟧-refl-✓ ; ⟦⟧-resp-[] ;
+  using ( ≃-refl ; ≃-sym ; ✓-tl ; ✓? ; ⟦⟧-resp-✓ ; ⟦⟧-refl-✓ ; ⟦⟧-resp-[] ;
     IsEquiv ; isEquiv ; ≃-equiv ; I-η)
 
 module System.IO.Transducers.Properties.Monoidal where
@@ -256,7 +256,7 @@ back-resp-✓ :  ∀ {S} {T} {as : Trace (S & T)} → (as ✓) → (back {S} as 
 back-resp-✓ {I}     ✓as       = ✓as
 back-resp-✓ {Σ W F} (a ∷ ✓as) = back-resp-✓ {♭ F a} ✓as
 
--- Tensor plays nicely with associativity when f reflects completion
+-- Tensor plays nicely with concatenation when f reflects completion
 
 ⟦[&]⟧-++ : ∀ {S T U V} (f : Trace S → Trace T) (g : Trace U → Trace V) →
   (∀ cs → (f cs ✓) → (cs ✓)) → ∀ as bs →
@@ -306,7 +306,32 @@ back-resp-✓ {Σ W F} (a ∷ ✓as) = back-resp-✓ {♭ F a} ✓as
 ⟦[&]⟧-resp-⟦⟫⟧ {S₁} f₁ g₁ f₂ g₂ g₁-refl-✓ as =
   sym (⟦[&]⟧-++ g₁ g₂ g₁-refl-✓ (f₁ (front {S₁} as)) (f₂ (back {S₁} as)))
 
--- Tensor respects composition
+-- Tensor respects composition when f₁ respects completion and f₂ is strict
+
+⟦[&]⟧-resp-⟦⟫⟧' : ∀ {S₁ S₂ T₁ T₂ U₁ U₂} → 
+  (f₁ : Trace S₁ → Trace T₁) → (g₁ : Trace T₁ → Trace U₁) → 
+    (f₂ : Trace S₂ → Trace T₂) → (g₂ : Trace T₂ → Trace U₂) → 
+       (∀ as → as ✓ → f₁ as ✓) → (f₂ [] ≡ []) →
+        (((f₁ ⟦⟫⟧ g₁) ⟦[&]⟧ (f₂ ⟦⟫⟧ g₂)) ≃ (f₁ ⟦[&]⟧ f₂) ⟦⟫⟧ (g₁ ⟦[&]⟧ g₂))
+⟦[&]⟧-resp-⟦⟫⟧' {S₁} {S₂} {T₁} {T₂} f₁ g₁ f₂ g₂ f₁-resp-✓ f₂[]≡[] as with ✓? (f₁ (front as))
+⟦[&]⟧-resp-⟦⟫⟧' {S₁} {S₂} {T₁} {T₂} f₁ g₁ f₂ g₂ f₁-resp-✓ f₂[]≡[] as | yes ✓bs₁ =
+  cong₂ _++_ (cong g₁ (sym (++-β₁ _ _))) (cong g₂ (sym (++-β₂ ✓bs₁ _)))
+⟦[&]⟧-resp-⟦⟫⟧' {S₁} {S₂} {T₁} {T₂} f₁ g₁ f₂ g₂ f₁-resp-✓ f₂[]≡[] as | no ¬✓bs₁ = 
+  begin
+    g₁ (f₁ as₁) ++ g₂ (f₂ as₂)
+  ≡⟨ cong (_++_  (g₁ (f₁ as₁))) (cong g₂ (cong f₂ (back≡[] ¬✓as₁))) ⟩
+    g₁ (f₁ as₁) ++ g₂ (f₂ [])
+  ≡⟨ cong (_++_  (g₁ (f₁ as₁))) (cong g₂ f₂[]≡[]) ⟩
+    g₁ (f₁ as₁) ++ g₂ []
+  ≡⟨ cong₂ _++_ (cong g₁ (sym (++-β₁ _ _))) (cong g₂ (sym (++-β₂-[] ¬✓bs₁ _))) ⟩
+    g₁ (front (f₁ as₁ ++ f₂ as₂)) ++ g₂ (back {T₁} (f₁ as₁ ++ f₂ as₂))
+  ∎ where
+  as₁ = front {S₁} as
+  as₂ = back {S₁} as
+  ¬✓as₁ : ¬ as₁ ✓
+  ¬✓as₁ = λ as₁✓ → ¬✓bs₁ (f₁-resp-✓ as₁ as₁✓)
+  
+-- Tensor respects composition when Q₁ is reflective
 
 [&]-resp-⟫ : ∀ {S₁ S₂ T₁ T₂ U₁ U₂}
   (P₁ : S₁ ⇒ T₁) {Q₁ : T₁ ⇒ U₁} (⟳Q₁ : Reflective Q₁)
@@ -318,6 +343,23 @@ back-resp-✓ {Σ W F} (a ∷ ✓as) = back-resp-✓ {♭ F a} ✓as
   ≡⟨ [&]-≃-⟦[&]⟧ (⟫-semantics P₁ Q₁) (⟫-semantics P₂ Q₂) as ⟩
     ((⟦ P₁ ⟧ ⟦⟫⟧ ⟦ Q₁ ⟧) ⟦[&]⟧ (⟦ P₂ ⟧ ⟦⟫⟧ ⟦ Q₂ ⟧)) as
   ≡⟨ ⟦[&]⟧-resp-⟦⟫⟧ ⟦ P₁ ⟧ ⟦ Q₁ ⟧ ⟦ P₂ ⟧ ⟦ Q₂ ⟧ (⟦⟧-refl-✓ ⟳Q₁) as ⟩
+    ((⟦ P₁ ⟧ ⟦[&]⟧ ⟦ P₂ ⟧) ⟦⟫⟧ (⟦ Q₁ ⟧ ⟦[&]⟧ ⟦ Q₂ ⟧)) as
+  ≡⟨ sym (⟫-≃-⟦⟫⟧ ([&]-semantics P₁ P₂) ([&]-semantics Q₁ Q₂) as) ⟩
+    ⟦ P₁ [&] P₂ ⟫ Q₁ [&] Q₂ ⟧ as
+  ∎
+  
+-- Tensor respects composition when P₂ is strict
+
+[&]-resp-⟫' : ∀ {S₁ S₂ T₁ T₂ U₁ U₂}
+  (P₁ : S₁ ⇒ T₁) (Q₁ : T₁ ⇒ U₁) 
+    {P₂ : S₂ ⇒ T₂} (#P₂ : Strict P₂) (Q₂ : T₂ ⇒ U₂) →
+      ⟦ (P₁ ⟫ Q₁) [&] (P₂ ⟫ Q₂) ⟧ ≃ ⟦ (P₁ [&] P₂) ⟫ (Q₁ [&] Q₂) ⟧
+[&]-resp-⟫' P₁ Q₁ {P₂} #P₂ Q₂ as = 
+  begin
+    ⟦ (P₁ ⟫ Q₁) [&] (P₂ ⟫ Q₂) ⟧ as
+  ≡⟨ [&]-≃-⟦[&]⟧ (⟫-semantics P₁ Q₁) (⟫-semantics P₂ Q₂) as ⟩
+    ((⟦ P₁ ⟧ ⟦⟫⟧ ⟦ Q₁ ⟧) ⟦[&]⟧ (⟦ P₂ ⟧ ⟦⟫⟧ ⟦ Q₂ ⟧)) as
+  ≡⟨ ⟦[&]⟧-resp-⟦⟫⟧' ⟦ P₁ ⟧ ⟦ Q₁ ⟧ ⟦ P₂ ⟧ ⟦ Q₂ ⟧ (⟦⟧-resp-✓ P₁) (⟦⟧-resp-[] #P₂) as ⟩
     ((⟦ P₁ ⟧ ⟦[&]⟧ ⟦ P₂ ⟧) ⟦⟫⟧ (⟦ Q₁ ⟧ ⟦[&]⟧ ⟦ Q₂ ⟧)) as
   ≡⟨ sym (⟫-≃-⟦⟫⟧ ([&]-semantics P₁ P₂) ([&]-semantics Q₁ Q₂) as) ⟩
     ⟦ P₁ [&] P₂ ⟫ Q₁ [&] Q₂ ⟧ as
