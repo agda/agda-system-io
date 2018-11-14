@@ -1,4 +1,5 @@
-open import Data.Nat using ( ℕ ; fold ) renaming ( zero to zero' ; suc to suc' )
+open import Data.Nat using ( ℕ ) renaming ( zero to zero' ; suc to suc' )
+open import Data.Nat.GeneralisedArithmetic using ( fold )
 open import Data.String using ( String )
 
 module Data.Natural.Primitive where
@@ -14,20 +15,21 @@ postulate
   foldl : {A : Set} → (A → A) → A → Natural → A
   foldl' : {A : Set} → (A → A) → A → Natural → A
   foldr : {A : Set} → (A → A) → A → Natural → A
-{-# IMPORT Data.Natural.AgdaFFI #-}
-{-# COMPILED_TYPE Natural Data.Natural.AgdaFFI.Natural #-}
-{-# COMPILED zero 0 #-}
-{-# COMPILED suc succ #-}
-{-# COMPILED _+_ (+) #-}
-{-# COMPILED show show #-}
-{-# COMPILED foldl (\ _ -> Data.Natural.AgdaFFI.nfoldl) #-}
-{-# COMPILED foldl' (\ _ -> Data.Natural.AgdaFFI.nfoldl') #-}
-{-# COMPILED foldr (\ _ -> Data.Natural.AgdaFFI.nfoldr) #-}
+
+{-# FOREIGN GHC import qualified Data.Natural.AgdaFFI #-}
+{-# COMPILE GHC Natural = type Data.Natural.AgdaFFI.Natural #-}
+{-# COMPILE GHC zero = 0 #-}
+{-# COMPILE GHC suc = succ #-}
+{-# COMPILE GHC _+_ = (+) #-}
+{-# COMPILE GHC show = show #-}
+{-# COMPILE GHC foldl = (\ _ -> Data.Natural.AgdaFFI.nfoldl) #-}
+{-# COMPILE GHC foldl' = (\ _ -> Data.Natural.AgdaFFI.nfoldl') #-}
+{-# COMPILE GHC foldr = (\ _ -> Data.Natural.AgdaFFI.nfoldr) #-}
 
 private
   postulate
-    # : ∀ {A} → A → Natural
-{-# COMPILED # (\ _ -> Data.Natural.AgdaFFI.convert MAlonzo.Data.Nat.mazNatToInteger) #-}
+    # : ∀ {i} {A : Set i} → A → Natural
+{-# COMPILE GHC # = (\ _ -> Data.Natural.AgdaFFI.convert MAlonzo.Data.Nat.mazNatToInteger) #-}
 
 fromℕ : ℕ → Natural
 fromℕ = #

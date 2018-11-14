@@ -7,9 +7,9 @@ postulate
   Word32 : Set
   Word64 : Set
 
-{-# IMPORT Data.Word #-}
-{-# COMPILED_TYPE Word Data.Word.Word #-}
-{-# COMPILED_TYPE Word8 Data.Word.Word8 #-}
-{-# COMPILED_TYPE Word16 Data.Word.Word16 #-}
-{-# COMPILED_TYPE Word32 Data.Word.Word32 #-}
-{-# COMPILED_TYPE Word64 Data.Word.Word64 #-}
+{-# FOREIGN GHC import qualified Data.Word #-}
+{-# COMPILE GHC Word = type Data.Word.Word #-}
+{-# COMPILE GHC Word8 = type Data.Word.Word8 #-}
+{-# COMPILE GHC Word16 = type Data.Word.Word16 #-}
+{-# COMPILE GHC Word32 = type Data.Word.Word32 #-}
+{-# COMPILE GHC Word64 = type Data.Word.Word64 #-}
