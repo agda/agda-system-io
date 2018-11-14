@@ -29,7 +29,7 @@ postulate
 private
   postulate
     # : ∀ {i} {A : Set i} → A → Natural
-{-# COMPILE GHC # = (\ _ -> Data.Natural.AgdaFFI.convert MAlonzo.Data.Nat.mazNatToInteger) #-}
+{-# COMPILE GHC # = (\ _ _ -> Data.Natural.AgdaFFI.convert MAlonzo.Data.Nat.mazNatToInteger) #-}
 
 fromℕ : ℕ → Natural
 fromℕ = #
